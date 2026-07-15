@@ -1,0 +1,420 @@
+// Schéma de données — POC « Gestion & suivi des marchés publics » (Congo)
+//
+// NOTE SQLite : les `enum` Prisma ne sont pas supportés sur SQLite → tous les
+// champs "énumérés" sont des `String`, dont les valeurs autorisées sont typées
+// dans lib/enums.ts (unions TS + libellés d'affichage).
+// NOTE MONTANTS : `Float` (REAL) pour représenter des FC entiers pouvant
+// dépasser la limite Int 32 bits (milliards de FC), sans la lourdeur de BigInt.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * ============================ Auth / RBAC / Audit =========================
+ */
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  email        String    @unique
+  passwordHash String
+  fullName     String
+  role         String // ADMIN | SECRETAIRE_PERMANENT | RESP_PREPARATION | RESP_PASSATION | RESP_SUIVI
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+
+  createdMarkets     Market[]             @relation("MarketCreator")
+  validatedSteps     MarketStep[]         @relation("StepValidator")
+  stepHistories      MarketStepHistory[]
+  evaluations        SupplierEvaluation[]
+  uploadedDocuments  Document[]
+  acknowledgedAlerts Alert[]
+  auditLogs          AuditLog[]
+  requestedPurchases PurchaseRequest[]    @relation("RequestRequester")
+  decidedPurchases   PurchaseRequest[]    @relation("RequestDecider")
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String // LOGIN | LOGOUT | CREATE | UPDATE | DELETE | VALIDATE | EXPORT | UPLOAD
+  module     String
+  entityType String?
+  entityId   Int?
+  detail     String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId])
+}
+
+/**
+ * ===================== Référentiel / templates de procédure ===============
+ */
+
+model ProcedureTemplate {
+  id                       Int      @id @default(autoincrement())
+  name                     String
+  marketNature             String // TRAVAUX | FOURNITURES_SERVICES | PRESTATIONS_INTELLECTUELLES
+  procedureType            String // AO_OUVERT | AO_RESTREINT | DEMANDE_COTATION | ...
+  requiresPrequalification Boolean  @default(false)
+  requiresRevuePrealable   Boolean  @default(true)
+  active                   Boolean  @default(true)
+  createdAt                DateTime @default(now())
+
+  phases  ProcedureTemplatePhase[]
+  markets Market[]
+}
+
+model ProcedureTemplatePhase {
+  id         Int               @id @default(autoincrement())
+  templateId Int
+  template   ProcedureTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  order      Int
+  name       String
+
+  steps ProcedureTemplateStep[]
+}
+
+model ProcedureTemplateStep {
+  id                   Int                    @id @default(autoincrement())
+  phaseId              Int
+  phase                ProcedureTemplatePhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  order                Int
+  name                 String
+  stepKind             String                 @default("DATE") // DATE | MONTANT | VALIDATION | DOCUMENT
+  defaultDelayDays     Int? // délai standard depuis l'étape précédente (cascade des prévisions)
+  requiresNonObjection Boolean                @default(false)
+  requiredDocCategory  String?
+}
+
+/**
+ * ======================= Marché + moteur prévision/réalisation ============
+ */
+
+model Market {
+  id                Int                @id @default(autoincrement())
+  reference         String             @unique
+  intitule          String
+  nature            String // TRAVAUX | FOURNITURES_SERVICES | PRESTATIONS_INTELLECTUELLES
+  procedureType     String
+  budgetAmountFC    Float
+  budgetCode        String?
+  aoNumber          String?
+  fiscalYear        Int
+  status            String             @default("PREVU") // PREVU | LANCE | ATTRIBUE | EXECUTE | CLOTURE
+  contractAmountFC  Float?
+  templateId        Int?
+  template          ProcedureTemplate? @relation(fields: [templateId], references: [id])
+  awardedSupplierId Int?
+  awardedSupplier   Supplier?          @relation(fields: [awardedSupplierId], references: [id])
+  createdById       Int
+  createdBy         User               @relation("MarketCreator", fields: [createdById], references: [id])
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  steps       MarketStep[]
+  contracts   Contract[]
+  documents   Document[]
+  evaluations SupplierEvaluation[]
+  alerts      Alert[]
+
+  @@index([nature])
+  @@index([status])
+  @@index([fiscalYear])
+}
+
+model MarketStep {
+  id              Int       @id @default(autoincrement())
+  marketId        Int
+  market          Market    @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  templateStepId  Int?
+  phaseName       String
+  stepName        String
+  order           Int
+  stepKind        String    @default("DATE")
+  plannedDate     DateTime?
+  actualDate      DateTime?
+  plannedAmountFC Float?
+  actualAmountFC  Float?
+  status          String    @default("A_VENIR") // A_VENIR | EN_COURS | REALISE | EN_RETARD
+  documentId      Int? // lien logiciel vers un Document (soft link)
+  validatedById   Int?
+  validatedBy     User?     @relation("StepValidator", fields: [validatedById], references: [id])
+  validatedAt     DateTime?
+  comment         String?
+
+  history MarketStepHistory[]
+
+  @@index([marketId])
+}
+
+model MarketStepHistory {
+  id           Int        @id @default(autoincrement())
+  marketStepId Int
+  marketStep   MarketStep @relation(fields: [marketStepId], references: [id], onDelete: Cascade)
+  userId       Int?
+  user         User?      @relation(fields: [userId], references: [id])
+  changeType   String // UPDATE_PLANNED | UPDATE_ACTUAL | VALIDATE | COMMENT
+  field        String?
+  oldValue     String?
+  newValue     String?
+  at           DateTime   @default(now())
+
+  @@index([marketStepId])
+}
+
+/**
+ * ============================ Fournisseurs & évaluation ==================
+ */
+
+model Supplier {
+  id            Int      @id @default(autoincrement())
+  name          String
+  type          String // ENTREPRISE | CONSULTANT_CABINET | CONSULTANT_INDIVIDUEL
+  rccm          String?
+  nif           String?
+  address       String?
+  city          String?
+  phone         String?
+  email         String?
+  contactPerson String?
+  createdAt     DateTime @default(now())
+
+  markets          Market[]
+  contracts        Contract[]
+  evaluations      SupplierEvaluation[]
+  purchaseRequests PurchaseRequest[]
+}
+
+model SupplierEvaluation {
+  id                Int      @id @default(autoincrement())
+  supplierId        Int
+  supplier          Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  marketId          Int?
+  market            Market?  @relation(fields: [marketId], references: [id])
+  evaluatorId       Int
+  evaluator         User     @relation(fields: [evaluatorId], references: [id])
+  qualityScore      Int // 1..5
+  deadlineScore     Int
+  conformityScore   Int
+  satisfactionScore Int
+  globalScore       Float // moyenne calculée
+  comment           String?
+  evaluatedAt       DateTime @default(now())
+
+  @@index([supplierId])
+}
+
+/**
+ * ============================ Contrats & exécution =======================
+ */
+
+model Contract {
+  id                    Int       @id @default(autoincrement())
+  marketId              Int
+  market                Market    @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  supplierId            Int
+  supplier              Supplier  @relation(fields: [supplierId], references: [id])
+  reference             String    @unique
+  type                  String    @default("SIMPLE") // SIMPLE | BON_COMMANDE | CONTRAT_CADRE
+  signatureDate         DateTime?
+  amountFC              Float // pour un contrat-cadre : plafond
+  startDate             DateTime?
+  endDate               DateTime?
+  durationDays          Int?
+  guaranteeRetentionPct Float?
+  status                String    @default("ACTIF") // ACTIF | SUSPENDU | RECEPTIONNE_PROVISOIRE | RECEPTIONNE_DEFINITIF | RESILIE | CLOTURE
+  createdAt             DateTime  @default(now())
+
+  guarantees     Guarantee[]
+  payments       Payment[]
+  receptions     Reception[]
+  penalties      Penalty[]
+  amendments     Amendment[]
+  serviceOrders  ServiceOrder[]
+  purchaseOrders PurchaseOrder[]
+
+  @@index([marketId])
+}
+
+model Guarantee {
+  id         Int       @id @default(autoincrement())
+  contractId Int
+  contract   Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  type       String // CAUTION_SOUMISSION | GARANTIE_BONNE_EXECUTION | RETENUE_GARANTIE | GARANTIE_AVANCE
+  amountFC   Float
+  issueDate  DateTime?
+  expiryDate DateTime?
+  status     String    @default("ACTIVE") // ACTIVE | LIBEREE | EXPIREE
+
+  @@index([contractId])
+}
+
+model Payment {
+  id           Int       @id @default(autoincrement())
+  contractId   Int
+  contract     Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  reference    String
+  type         String // AVANCE | ACOMPTE | DECOMPTE | SOLDE
+  amountFC     Float
+  dueDate      DateTime?
+  paidDate     DateTime?
+  status       String    @default("EN_ATTENTE") // EN_ATTENTE | PAYE | EN_RETARD
+  invoiceDocId Int?
+
+  @@index([contractId])
+}
+
+model Reception {
+  id          Int       @id @default(autoincrement())
+  contractId  Int
+  contract    Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  type        String // LIVRAISON | PROVISOIRE | DEFINITIVE
+  plannedDate DateTime?
+  actualDate  DateTime?
+  status      String    @default("EN_ATTENTE") // EN_ATTENTE | RECEPTIONNE | EN_RETARD
+  pvDocId     Int?
+
+  @@index([contractId])
+}
+
+model Penalty {
+  id          Int       @id @default(autoincrement())
+  contractId  Int
+  contract    Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  reason      String
+  amountFC    Float
+  daysLate    Int?
+  appliedDate DateTime?
+}
+
+model Amendment {
+  id            Int       @id @default(autoincrement())
+  contractId    Int
+  contract      Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  reference     String
+  object        String
+  amountDeltaFC Float     @default(0)
+  newEndDate    DateTime?
+  approvalDate  DateTime?
+  status        String    @default("EN_COURS") // EN_COURS | APPROUVE | REJETE
+}
+
+model ServiceOrder {
+  id         Int       @id @default(autoincrement())
+  contractId Int
+  contract   Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  reference  String
+  type       String // DEMARRAGE | ARRET | REPRISE | MODIFICATION
+  date       DateTime?
+  object     String
+  docId      Int?
+}
+
+model PurchaseOrder {
+  id           Int       @id @default(autoincrement())
+  contractId   Int
+  contract     Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  reference    String
+  orderDate    DateTime?
+  amountFC     Float
+  description  String
+  deliveryDate DateTime?
+  status       String    @default("EMISE") // EMISE | LIVREE | PAYEE | ANNULEE
+
+  @@index([contractId])
+}
+
+/**
+ * ============================ Achats sous seuil ==========================
+ */
+
+model PurchaseRequest {
+  id                Int       @id @default(autoincrement())
+  reference         String    @unique
+  requesterId       Int
+  requester         User      @relation("RequestRequester", fields: [requesterId], references: [id])
+  description       String
+  estimatedAmountFC Float
+  status            String    @default("DEMANDE") // DEMANDE | APPROUVEE | COMMANDEE | PAYEE | REJETEE
+  supplierId        Int?
+  supplier          Supplier? @relation(fields: [supplierId], references: [id])
+  requestDate       DateTime  @default(now())
+  decisionById      Int?
+  decisionBy        User?     @relation("RequestDecider", fields: [decisionById], references: [id])
+  decisionDate      DateTime?
+
+  payments PurchaseRequestPayment[]
+}
+
+model PurchaseRequestPayment {
+  id        Int             @id @default(autoincrement())
+  requestId Int
+  request   PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  amountFC  Float
+  dueDate   DateTime?
+  paidDate  DateTime?
+  status    String          @default("EN_ATTENTE") // EN_ATTENTE | PAYE | EN_RETARD
+}
+
+/**
+ * =================================== GED =================================
+ */
+
+model Document {
+  id                 Int        @id @default(autoincrement())
+  category           String // DAO | DPQ | TDR | PV | RAPPORT_EVALUATION | CONTRAT | ORDRE_SERVICE | FACTURE | AVIS_NON_OBJECTION | AVENANT | GARANTIE | AUTRE
+  title              String
+  fileName           String
+  filePath           String
+  mimeType           String     @default("application/pdf")
+  sizeBytes          Int        @default(0)
+  version            Int        @default(1)
+  isCurrentVersion   Boolean    @default(true)
+  replacesDocumentId Int?
+  replaces           Document?  @relation("DocVersion", fields: [replacesDocumentId], references: [id])
+  replacedBy         Document[] @relation("DocVersion")
+  marketId           Int?
+  market             Market?    @relation(fields: [marketId], references: [id])
+  contractId         Int?
+  uploadedById       Int
+  uploadedBy         User       @relation(fields: [uploadedById], references: [id])
+  uploadedAt         DateTime   @default(now())
+  archived           Boolean    @default(false)
+
+  @@index([category])
+  @@index([marketId])
+}
+
+/**
+ * ================================= Alertes ===============================
+ */
+
+model Alert {
+  id               Int       @id @default(autoincrement())
+  type             String // RETARD_PUBLICATION | ETAPE_EN_RETARD | ECHEANCE_CONTRAT | GARANTIE_EXPIRATION | RETARD_LIVRAISON | PAIEMENT_ATTENTE
+  severity         String    @default("WARNING") // INFO | WARNING | CRITIQUE
+  marketId         Int?
+  market           Market?   @relation(fields: [marketId], references: [id])
+  contractId       Int?
+  refEntity        String? // clé logique de dédoublonnage (ex. "MarketStep:42")
+  message          String
+  dueDate          DateTime?
+  status           String    @default("ACTIVE") // ACTIVE | ACQUITTEE | RESOLUE
+  createdAt        DateTime  @default(now())
+  acknowledgedById Int?
+  acknowledgedBy   User?     @relation(fields: [acknowledgedById], references: [id])
+  resolvedAt       DateTime?
+
+  @@unique([type, refEntity])
+  @@index([status])
+}
