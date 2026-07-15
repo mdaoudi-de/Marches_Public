@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #d9e6ff;
+  --color-brand-200: #bcd3ff;
+  --color-brand-300: #8eb6ff;
+  --color-brand-400: #598cff;
+  --color-brand-500: #3563eb;
+  --color-brand-600: #244fd1;
+  --color-brand-700: #1e3ea8;
+  --color-brand-800: #1d3585;
+  --color-brand-900: #1d2f69;
+  --font-sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: #f5f6f8;
+  color: #1f2937;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Table utilities reused across the app */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.data-table th {
+  text-align: left;
+  font-weight: 600;
+  color: #4b5563;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid #f0f1f3;
+  vertical-align: middle;
+}
+.data-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+}
