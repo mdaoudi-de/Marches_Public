@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "postinstall": "prisma generate",
     "seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force --skip-generate",
     "test": "vitest run"
@@ -16,33 +17,34 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@prisma/client": "^6.3.0",
+    "@vercel/blob": "^2.6.1",
+    "bcryptjs": "^2.4.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "exceljs": "^4.4.0",
+    "jose": "^5.9.6",
+    "lucide-react": "^0.474.0",
     "next": "^15.1.6",
+    "pdfkit": "^0.15.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@prisma/client": "^6.3.0",
-    "jose": "^5.9.6",
-    "bcryptjs": "^2.4.3",
-    "zod": "^3.24.1",
-    "date-fns": "^4.1.0",
     "recharts": "^2.15.0",
-    "exceljs": "^4.4.0",
-    "pdfkit": "^0.15.1",
-    "clsx": "^2.1.1",
     "tailwind-merge": "^2.6.0",
-    "lucide-react": "^0.474.0"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
-    "typescript": "^5.7.3",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.10.7",
+    "@types/pdfkit": "^0.13.9",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/pdfkit": "^0.13.9",
-    "prisma": "^6.3.0",
-    "tsx": "^4.19.2",
-    "tailwindcss": "^4.0.0",
-    "@tailwindcss/postcss": "^4.0.0",
     "postcss": "^8.5.1",
+    "prisma": "^6.3.0",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
     "vitest": "^3.0.2"
   }
 }

@@ -28,9 +28,6 @@ yarn-error.log*
 /prisma/*.db-journal
 /prisma/dev.db
 
-# GED uploaded files
-/storage/documents/*
-!/storage/documents/.gitkeep
 
 # typescript
 *.tsbuildinfo

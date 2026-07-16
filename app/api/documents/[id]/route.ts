@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import fs from "node:fs";
-import path from "node:path";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -15,11 +13,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const doc = await prisma.document.findUnique({ where: { id: Number(id) } });
   if (!doc) return NextResponse.json({ error: "Document introuvable" }, { status: 404 });
 
-  const abs = path.join(process.cwd(), "storage", "documents", doc.filePath);
-  if (!fs.existsSync(abs)) return NextResponse.json({ error: "Fichier manquant sur le serveur" }, { status: 404 });
+  const blobRes = await fetch(doc.filePath);
+  if (!blobRes.ok) return NextResponse.json({ error: "Fichier manquant sur le serveur" }, { status: 404 });
 
-  const data = fs.readFileSync(abs);
-  return new NextResponse(new Uint8Array(data), {
+  const data = await blobRes.arrayBuffer();
+  return new NextResponse(data, {
     headers: {
       "Content-Type": doc.mimeType || "application/octet-stream",
       "Content-Disposition": `inline; filename="${encodeURIComponent(doc.fileName)}"`,
