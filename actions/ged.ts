@@ -22,7 +22,7 @@ export async function uploadDocument(formData: FormData): Promise<void> {
 
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-60);
   const fileName = `up-${Date.now()}-${safe}`;
-  const blob = await put(`documents/${fileName}`, file, { access: "public" });
+  const blob = await put(`documents/${fileName}`, file, { access: "private" });
 
   let version = 1;
   if (replacesId) {

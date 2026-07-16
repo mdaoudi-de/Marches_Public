@@ -13,7 +13,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const doc = await prisma.document.findUnique({ where: { id: Number(id) } });
   if (!doc) return NextResponse.json({ error: "Document introuvable" }, { status: 404 });
 
-  const blobRes = await fetch(doc.filePath);
+  const blobRes = await fetch(doc.filePath, {
+    headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
+  });
   if (!blobRes.ok) return NextResponse.json({ error: "Fichier manquant sur le serveur" }, { status: 404 });
 
   const data = await blobRes.arrayBuffer();
