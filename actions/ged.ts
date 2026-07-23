@@ -1,14 +1,11 @@
 "use server";
 
-import fs from "node:fs";
-import path from "node:path";
+import { put } from "@vercel/blob";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { assertCan } from "@/lib/rbac";
 import { logAudit } from "@/lib/audit";
-
-const STORAGE = path.join(process.cwd(), "storage", "documents");
 
 export async function uploadDocument(formData: FormData): Promise<void> {
   const user = await requireUser();
@@ -23,11 +20,9 @@ export async function uploadDocument(formData: FormData): Promise<void> {
   if (!file || file.size === 0) throw new Error("Aucun fichier fourni.");
   if (!title) throw new Error("Le titre est requis.");
 
-  if (!fs.existsSync(STORAGE)) fs.mkdirSync(STORAGE, { recursive: true });
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-60);
   const fileName = `up-${Date.now()}-${safe}`;
-  const bytes = Buffer.from(await file.arrayBuffer());
-  fs.writeFileSync(path.join(STORAGE, fileName), bytes);
+  const blob = await put(`documents/${fileName}`, file, { access: "private" });
 
   let version = 1;
   if (replacesId) {
@@ -40,7 +35,7 @@ export async function uploadDocument(formData: FormData): Promise<void> {
 
   const doc = await prisma.document.create({
     data: {
-      category, title, fileName, filePath: fileName,
+      category, title, fileName, filePath: blob.url,
       mimeType: file.type || "application/octet-stream",
       sizeBytes: file.size, version, isCurrentVersion: true,
       replacesDocumentId: replacesId, marketId, uploadedById: user.id,

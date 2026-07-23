@@ -3,11 +3,10 @@
  * Ancré sur TODAY = 2026-07-15. Aucune valeur aléatoire (jitter dérivé de l'index)
  * afin que écarts, retards et alertes soient reproductibles.
  */
-import fs from "node:fs";
-import path from "node:path";
 import bcrypt from "bcryptjs";
 import { addDays } from "date-fns";
 import PDFDocument from "pdfkit";
+import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import { recomputeAlerts } from "@/lib/alertes";
 import { runScoring } from "@/lib/tiers-scoring";
@@ -17,7 +16,7 @@ import { TEMPLATES, type TemplateDef } from "./templates";
 const TODAY = new Date("2026-07-15T00:00:00.000Z");
 const FISCAL_YEAR = 2026;
 const PASSWORD = "Passw0rd!";
-const STORAGE = path.join(process.cwd(), "storage", "documents");
+const HAS_BLOB = !!process.env.BLOB_READ_WRITE_TOKEN;
 
 function d(iso: string): Date {
   return new Date(iso + "T00:00:00.000Z");
@@ -102,20 +101,20 @@ const MARKETS: MarketSpec[] = [
 ];
 
 /* ------------------------------------------------------------------ PDF util */
-function genPdf(fileAbs: string, title: string, lines: string[]): Promise<number> {
+function genPdf(title: string, lines: string[]): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 56 });
-    const stream = fs.createWriteStream(fileAbs);
-    doc.pipe(stream);
+    const chunks: Buffer[] = [];
+    doc.on("data", (c) => chunks.push(c));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
     doc.fontSize(16).fillColor("#1d2f69").text(title);
     doc.moveDown(0.5);
     doc.fontSize(10).fillColor("#333");
     for (const l of lines) doc.text(l);
     doc.moveDown();
-    doc.fontSize(8).fillColor("#999").text("Document de démonstration — POC de suivi des marchés publics (contenu fictif).");
+    doc.fontSize(8).fillColor("#999").text("Document de démonstration — Probitech (contenu fictif).");
     doc.end();
-    stream.on("finish", () => resolve(fs.statSync(fileAbs).size));
-    stream.on("error", reject);
   });
 }
 
@@ -146,15 +145,6 @@ async function main() {
   await prisma.auditLog.deleteMany();
   await prisma.supplier.deleteMany();
   await prisma.user.deleteMany();
-
-  // Purge des fichiers GED
-  if (fs.existsSync(STORAGE)) {
-    for (const f of fs.readdirSync(STORAGE)) {
-      if (f.startsWith("doc-")) fs.unlinkSync(path.join(STORAGE, f));
-    }
-  } else {
-    fs.mkdirSync(STORAGE, { recursive: true });
-  }
 
   /* --------------------------------------------------------------- Users */
   console.log("→ Utilisateurs…");
@@ -619,21 +609,24 @@ async function seedDocuments(users: Record<string, { id: number }>, marketIdByRe
   }): Promise<number> => {
     seq++;
     const fileName = `doc-${seq}.pdf`;
-    const abs = path.join(STORAGE, fileName);
-    const size = await genPdf(abs, opts.title, [
+    const buffer = await genPdf(opts.title, [
       `Catégorie : ${opts.category}`,
       opts.marketRef ? `Marché : ${opts.marketRef}` : "",
       `Version : ${opts.version ?? 1}`,
       `Date : 2026`,
     ].filter(Boolean));
+    // Stockage Vercel Blob si un jeton est présent ; sinon placeholder (dev local sans Blob).
+    const filePath = HAS_BLOB
+      ? (await put(`documents/${fileName}`, buffer, { access: "private", contentType: "application/pdf" })).url
+      : `local://${fileName}`;
     const doc = await prisma.document.create({
       data: {
         category: opts.category,
         title: opts.title,
         fileName,
-        filePath: fileName,
+        filePath,
         mimeType: "application/pdf",
-        sizeBytes: size,
+        sizeBytes: buffer.length,
         version: opts.version ?? 1,
         isCurrentVersion: opts.isCurrent ?? true,
         replacesDocumentId: opts.replaces ?? null,
