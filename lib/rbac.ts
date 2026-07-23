@@ -25,23 +25,23 @@ export const ACCESS_LEVEL_LABELS: Record<AccessLevel, string> = {
 export const RBAC_MATRIX: Record<Role, Record<AppModule, AccessLevel>> = {
   ADMIN: {
     DASHBOARD: "admin", PPM: "admin", PASSATION: "admin", CONTRATS: "admin",
-    ACHATS: "admin", FOURNISSEURS: "admin", GED: "admin", ALERTES: "admin", ADMIN: "admin",
+    ACHATS: "admin", FOURNISSEURS: "admin", TIERS: "admin", GED: "admin", ALERTES: "admin", ADMIN: "admin",
   },
   SECRETAIRE_PERMANENT: {
     DASHBOARD: "view", PPM: "validate", PASSATION: "validate", CONTRATS: "validate",
-    ACHATS: "validate", FOURNISSEURS: "view", GED: "edit", ALERTES: "view", ADMIN: "view",
+    ACHATS: "validate", FOURNISSEURS: "view", TIERS: "validate", GED: "edit", ALERTES: "view", ADMIN: "view",
   },
   RESP_PREPARATION: {
     DASHBOARD: "view", PPM: "edit", PASSATION: "view", CONTRATS: "view",
-    ACHATS: "edit", FOURNISSEURS: "edit", GED: "edit", ALERTES: "view", ADMIN: "none",
+    ACHATS: "edit", FOURNISSEURS: "edit", TIERS: "edit", GED: "edit", ALERTES: "view", ADMIN: "none",
   },
   RESP_PASSATION: {
     DASHBOARD: "view", PPM: "edit", PASSATION: "edit", CONTRATS: "view",
-    ACHATS: "view", FOURNISSEURS: "edit", GED: "edit", ALERTES: "view", ADMIN: "none",
+    ACHATS: "view", FOURNISSEURS: "edit", TIERS: "edit", GED: "edit", ALERTES: "view", ADMIN: "none",
   },
   RESP_SUIVI: {
     DASHBOARD: "view", PPM: "view", PASSATION: "view", CONTRATS: "edit",
-    ACHATS: "edit", FOURNISSEURS: "validate", GED: "edit", ALERTES: "view", ADMIN: "none",
+    ACHATS: "edit", FOURNISSEURS: "validate", TIERS: "edit", GED: "edit", ALERTES: "view", ADMIN: "none",
   },
 };
 

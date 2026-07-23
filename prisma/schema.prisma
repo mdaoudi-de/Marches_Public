@@ -39,6 +39,7 @@ model User {
   auditLogs          AuditLog[]
   requestedPurchases PurchaseRequest[]    @relation("RequestRequester")
   decidedPurchases   PurchaseRequest[]    @relation("RequestDecider")
+  createdProfiles    ThirdPartyProfile[]  @relation("ProfileCreator")
 }
 
 model AuditLog {
@@ -101,25 +102,28 @@ model ProcedureTemplateStep {
  */
 
 model Market {
-  id                Int                @id @default(autoincrement())
-  reference         String             @unique
-  intitule          String
-  nature            String // TRAVAUX | FOURNITURES_SERVICES | PRESTATIONS_INTELLECTUELLES
-  procedureType     String
-  budgetAmountFC    Float
-  budgetCode        String?
-  aoNumber          String?
-  fiscalYear        Int
-  status            String             @default("PREVU") // PREVU | LANCE | ATTRIBUE | EXECUTE | CLOTURE
-  contractAmountFC  Float?
-  templateId        Int?
-  template          ProcedureTemplate? @relation(fields: [templateId], references: [id])
-  awardedSupplierId Int?
-  awardedSupplier   Supplier?          @relation(fields: [awardedSupplierId], references: [id])
-  createdById       Int
-  createdBy         User               @relation("MarketCreator", fields: [createdById], references: [id])
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  id                   Int                @id @default(autoincrement())
+  reference            String             @unique
+  intitule             String
+  nature               String // TRAVAUX | FOURNITURES_SERVICES | PRESTATIONS_INTELLECTUELLES
+  procedureType        String
+  budgetAmountFC       Float
+  budgetCode           String?
+  aoNumber             String?
+  contractingAuthority String             @default("FONAREV") // autorité contractante
+  directionId          Int?
+  fiscalYear           Int
+  status               String             @default("PREVU") // PREVU | LANCE | ATTRIBUE | EXECUTE | CLOTURE | RESILIE
+  contractAmountFC     Float?
+  templateId           Int?
+  template             ProcedureTemplate? @relation(fields: [templateId], references: [id])
+  awardedSupplierId    Int?
+  awardedSupplier      Supplier?          @relation(fields: [awardedSupplierId], references: [id])
+  direction            Direction?         @relation(fields: [directionId], references: [id])
+  createdById          Int
+  createdBy            User               @relation("MarketCreator", fields: [createdById], references: [id])
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
   steps       MarketStep[]
   contracts   Contract[]
@@ -130,6 +134,7 @@ model Market {
   @@index([nature])
   @@index([status])
   @@index([fiscalYear])
+  @@index([directionId])
 }
 
 model MarketStep {
@@ -189,10 +194,11 @@ model Supplier {
   contactPerson String?
   createdAt     DateTime @default(now())
 
-  markets          Market[]
-  contracts        Contract[]
-  evaluations      SupplierEvaluation[]
-  purchaseRequests PurchaseRequest[]
+  markets           Market[]
+  contracts         Contract[]
+  evaluations       SupplierEvaluation[]
+  purchaseRequests  PurchaseRequest[]
+  thirdPartyProfile ThirdPartyProfile?
 }
 
 model SupplierEvaluation {
@@ -400,21 +406,196 @@ model Document {
  */
 
 model Alert {
-  id               Int       @id @default(autoincrement())
-  type             String // RETARD_PUBLICATION | ETAPE_EN_RETARD | ECHEANCE_CONTRAT | GARANTIE_EXPIRATION | RETARD_LIVRAISON | PAIEMENT_ATTENTE
-  severity         String    @default("WARNING") // INFO | WARNING | CRITIQUE
-  marketId         Int?
-  market           Market?   @relation(fields: [marketId], references: [id])
-  contractId       Int?
-  refEntity        String? // clé logique de dédoublonnage (ex. "MarketStep:42")
-  message          String
-  dueDate          DateTime?
-  status           String    @default("ACTIVE") // ACTIVE | ACQUITTEE | RESOLUE
-  createdAt        DateTime  @default(now())
-  acknowledgedById Int?
-  acknowledgedBy   User?     @relation(fields: [acknowledgedById], references: [id])
-  resolvedAt       DateTime?
+  id                  Int                @id @default(autoincrement())
+  type                String // ...ETAPE_EN_RETARD | ... | DOC_TIERS_EXPIRATION | TIERS_RISQUE_ELEVE | TIERS_REEVALUATION_DUE | TIERS_INCIDENT
+  severity            String             @default("WARNING") // INFO | WARNING | CRITIQUE
+  marketId            Int?
+  market              Market?            @relation(fields: [marketId], references: [id])
+  contractId          Int?
+  thirdPartyProfileId Int?
+  thirdPartyProfile   ThirdPartyProfile? @relation(fields: [thirdPartyProfileId], references: [id])
+  refEntity           String? // clé logique de dédoublonnage (ex. "MarketStep:42")
+  message             String
+  dueDate             DateTime?
+  status              String             @default("ACTIVE") // ACTIVE | ACQUITTEE | RESOLUE
+  createdAt           DateTime           @default(now())
+  acknowledgedById    Int?
+  acknowledgedBy      User?              @relation(fields: [acknowledgedById], references: [id])
+  resolvedAt          DateTime?
 
   @@unique([type, refEntity])
   @@index([status])
+  @@index([thirdPartyProfileId])
+}
+
+/**
+ * ===================== Référentiel des directions (FONAREV) ===============
+ */
+
+model Direction {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  markets Market[]
+}
+
+/**
+ * ============ Module 8 — Screening, Due Diligence & Intelligence ==========
+ * Profil de tiers (opérateur économique) : qualification, pièces, questionnaire,
+ * investigation, scoring de risque pondéré, contrôles internes, surveillance.
+ */
+
+model ThirdPartyProfile {
+  id             Int       @id @default(autoincrement())
+  supplierId     Int?      @unique
+  supplier       Supplier? @relation(fields: [supplierId], references: [id])
+  // 8.1 Identité numérique
+  denomination   String
+  rccm           String?
+  idNational     String?
+  nif            String?
+  taxNumber      String?
+  address        String?
+  province       String?
+  city           String?
+  phone          String?
+  email          String?
+  contactPerson  String?
+  creationDate   DateTime?
+  sector         String?
+  activityCode   String?
+  experienceYrs  Int?
+  refsClients    String?
+  // Workflow + résultat
+  stage          String    @default("ENREGISTRE") // ENREGISTRE|COLLECTE|VERIF_AUTO|QUESTIONNAIRE|SCREENING|SCORING|DECISION|SURVEILLANCE|REEVALUATION
+  decision       String? // VALIDE|VALIDE_CONDITIONNEL|DD_RENFORCEE|REJETE
+  decisionNote   String?
+  riskScore      Float? // 0..100 (snapshot)
+  riskLevel      String? // FAIBLE|MOYEN|ELEVE|CRITIQUE
+  recommendation String?
+  mitigation     String?
+  lastScreenedAt DateTime?
+  nextReviewAt   DateTime?
+  createdById    Int
+  createdBy      User      @relation("ProfileCreator", fields: [createdById], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  representatives ThirdPartyRepresentative[]
+  shareholders    ThirdPartyShareholder[]
+  documents       ThirdPartyDocument[]
+  answers         DueDiligenceAnswer[]
+  investigations  EnhancedInvestigationItem[]
+  rubrics         ThirdPartyRiskRubric[]
+  controls        InternalControlFlag[]
+  events          ThirdPartyMonitoringEvent[]
+  alerts          Alert[]
+
+  @@index([riskLevel])
+  @@index([decision])
+}
+
+model ThirdPartyRepresentative {
+  id              Int               @id @default(autoincrement())
+  profileId       Int
+  profile         ThirdPartyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  role            String // GERANT|DG|PRESIDENT|PERSONNE_HABILITEE
+  fullName        String
+  idDocument      String?
+  appointmentDate DateTime?
+
+  @@index([profileId])
+}
+
+model ThirdPartyShareholder {
+  id                Int               @id @default(autoincrement())
+  profileId         Int
+  profile           ThirdPartyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name              String
+  sharePct          Float             @default(0)
+  isBeneficialOwner Boolean           @default(false)
+  nationality       String?
+
+  @@index([profileId])
+}
+
+model ThirdPartyDocument {
+  id            Int               @id @default(autoincrement())
+  profileId     Int
+  profile       ThirdPartyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  docType       String // RCCM|ID_NATIONAL|NIF|ATTESTATION_FISCALE|ATTESTATION_CNSS|AGREMENT|LICENCE|STATUTS|PIECE_DIRIGEANT|PROCURATION|RIB
+  title         String
+  provided      Boolean           @default(false)
+  issueDate     DateTime?
+  expiryDate    DateTime?
+  controlStatus String            @default("MANQUANT") // OK|MANQUANT|EXPIRE|INCOHERENT|FORMAT_INVALIDE|DOUBLON
+  controlNote   String?
+  documentId    Int? // soft-link GED
+
+  @@unique([profileId, docType])
+  @@index([profileId])
+}
+
+model DueDiligenceAnswer {
+  id            Int               @id @default(autoincrement())
+  profileId     Int
+  profile       ThirdPartyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  questionKey   String // ANTICORRUPTION|CODE_CONDUITE|CONDAMNATION|EXCLUSION_MP|PROCEDURE_JUDICIAIRE|LIENS_AGENTS_PUBLICS|LBC_FT
+  answer        String            @default("NSP") // OUI|NON|NSP
+  justification String?
+  documentId    Int?
+
+  @@unique([profileId, questionKey])
+}
+
+model EnhancedInvestigationItem {
+  id        Int               @id @default(autoincrement())
+  profileId Int
+  profile   ThirdPartyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  itemKey   String // VERIF_PHYSIQUE|VISITE_LOCAUX|VERIF_BANCAIRE|REFERENCES_CLIENTS|BENEF_EFFECTIFS|ANALYSE_FINANCIERE|SOUS_TRAITANTS|ENTRETIEN_DIRIGEANTS|CONFLITS_INTERETS|MEDIAS
+  status    String            @default("A_FAIRE") // A_FAIRE|EN_COURS|FAIT|NON_APPLICABLE
+  result    String? // RAS|ANOMALIE
+  note      String?
+
+  @@unique([profileId, itemKey])
+}
+
+model ThirdPartyRiskRubric {
+  id            Int               @id @default(autoincrement())
+  profileId     Int
+  profile       ThirdPartyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  rubricKey     String // IDENTITE_JURIDIQUE|SITUATION_ADMINISTRATIVE|DOCUMENTS|SITUATION_FISCALE|GOUVERNANCE|REPUTATION|HISTORIQUE_MARCHES|INTEGRITE
+  weightPct     Float
+  riskScore     Float // 0..100
+  justification String?
+
+  @@unique([profileId, rubricKey])
+}
+
+model InternalControlFlag {
+  id         Int               @id @default(autoincrement())
+  profileId  Int
+  profile    ThirdPartyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  controlKey String // C1|C2|C3|C4|C5|C7|C8
+  triggered  Boolean           @default(false)
+  computed   Boolean           @default(true)
+  severity   String            @default("INFO") // INFO|WARNING|CRITIQUE
+  note       String?
+
+  @@unique([profileId, controlKey])
+}
+
+model ThirdPartyMonitoringEvent {
+  id         Int               @id @default(autoincrement())
+  profileId  Int
+  profile    ThirdPartyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  type       String // CHANGEMENT_DIRIGEANT|CHANGEMENT_ACTIONNARIAT|MODIF_RCCM|NOUVELLE_SANCTION|DECISION_JUDICIAIRE|FAILLITE|INCIDENT_CONTRACTUEL|PENALITES_REPETEES|DEPASSEMENT_DELAIS|CHANGEMENT_RIB|VARIATION_MONTANTS
+  detectedAt DateTime
+  resolved   Boolean           @default(false)
+  detail     String?
+
+  @@index([profileId])
 }
