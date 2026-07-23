@@ -31,6 +31,14 @@ Pour repartir d'une base propre : `npm run db:reset` puis `npm run seed`.
 
 ## Déploiement (Vercel + Neon)
 
+**Déploiement en un clic** (importe cette branche et demande les 2 variables d'environnement) :
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fmdaoudi-de%2FMarches_Public%2Ftree%2Fdeploy%2Fvercel-postgres&env=DATABASE_URL,BLOB_READ_WRITE_TOKEN&envDescription=URL%20PostgreSQL%20(Neon)%20et%20jeton%20Vercel%20Blob&project-name=probitech-fonarev&repository-name=probitech-fonarev)
+
+Puis, une fois le projet créé et les variables saisies, initialiser la base (en local, `.env` pointant sur Neon + le jeton Blob) : `npx prisma migrate deploy && npm run seed`.
+
+### Étapes détaillées
+
 1. **Base Neon** : créer un projet sur [neon.tech](https://console.neon.tech), copier l'URL de connexion *pooled*.
 2. **Store Blob** : dans le projet Vercel, *Storage → Blob* → créer un store (fournit `BLOB_READ_WRITE_TOKEN`).
 3. **Variables d'environnement Vercel** : `DATABASE_URL` (Neon), `BLOB_READ_WRITE_TOKEN` (auto si store rattaché).
