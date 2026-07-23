@@ -1,13 +1,5 @@
 import "server-only";
-import { cookies } from "next/headers";
-import { SignJWT, jwtVerify } from "jose";
-
-const secret = new TextEncoder().encode(
-  process.env.AUTH_SECRET ?? "dev-insecure-secret-change-me",
-);
-
-export const SESSION_COOKIE = "poc_session";
-const SESSION_TTL_SECONDS = 60 * 60 * 12; // 12 h
+import { prisma } from "@/lib/prisma";
 
 export interface SessionUser {
   id: number;
@@ -16,52 +8,21 @@ export interface SessionUser {
   fullName: string;
 }
 
-export async function createSession(user: SessionUser): Promise<void> {
-  const token = await new SignJWT({
-    username: user.username,
-    role: user.role,
-    fullName: user.fullName,
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(String(user.id))
-    .setIssuedAt()
-    .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
-    .sign(secret);
-
-  const jar = await cookies();
-  jar.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_TTL_SECONDS,
-  });
-}
-
-export async function destroySession(): Promise<void> {
-  const jar = await cookies();
-  jar.delete(SESSION_COOKIE);
-}
-
+/**
+ * Authentification désactivée pour ce déploiement de démonstration (Vercel) :
+ * toutes les actions s'exécutent comme l'administrateur système (premier
+ * utilisateur de rôle ADMIN). Pour réactiver une vraie authentification,
+ * restaurer la version jose/cookie (voir branche feat/module8-tiers-usd-fonarev).
+ */
 export async function getCurrentUser(): Promise<SessionUser | null> {
-  const jar = await cookies();
-  const token = jar.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, secret);
-    return {
-      id: Number(payload.sub),
-      username: String(payload.username),
-      role: String(payload.role),
-      fullName: String(payload.fullName),
-    };
-  } catch {
-    return null;
-  }
+  const user = await prisma.user.findFirst({ where: { role: "ADMIN" } });
+  if (!user) return null;
+  return { id: user.id, username: user.username, role: user.role, fullName: user.fullName };
 }
 
-/** À utiliser en tête des Server Actions / pages protégées. */
+/** À utiliser en tête des Server Actions / pages. */
 export async function requireUser(): Promise<SessionUser> {
   const user = await getCurrentUser();
-  if (!user) throw new Error("Non authentifié.");
+  if (!user) throw new Error("Aucun utilisateur administrateur trouvé (exécuter `npm run seed`).");
   return user;
 }
