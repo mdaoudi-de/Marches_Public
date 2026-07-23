@@ -1,17 +1,15 @@
-// Schéma de données — POC « Gestion & suivi des marchés publics » (Congo)
+// Schéma de données — Probitech (marchés publics & due diligence, FONAREV)
 //
-// NOTE SQLite : les `enum` Prisma ne sont pas supportés sur SQLite → tous les
-// champs "énumérés" sont des `String`, dont les valeurs autorisées sont typées
-// dans lib/enums.ts (unions TS + libellés d'affichage).
-// NOTE MONTANTS : `Float` (REAL) pour représenter des FC entiers pouvant
-// dépasser la limite Int 32 bits (milliards de FC), sans la lourdeur de BigInt.
+// NOTE : les champs "énumérés" sont des `String` (héritage SQLite, portable
+// sur PostgreSQL), dont les valeurs autorisées sont typées dans lib/enums.ts.
+// NOTE MONTANTS : `Float` pour des montants entiers (USD) sans la lourdeur de BigInt.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
