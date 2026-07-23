@@ -1,12 +1,15 @@
-# POC — Plateforme de gestion et de suivi des marchés publics
+# Probitech — Marchés publics & Due Diligence (FONAREV)
 
 Démonstrateur fonctionnel (proof of concept) d'une plateforme de dématérialisation et de
-pilotage du cycle de vie des marchés publics, pour une entité contractante en République
-du Congo. Réalisé par AFRICA LINK BUSINESS.
+pilotage du cycle de vie des marchés publics, pour **FONAREV** (autorité contractante,
+RDC). Produit : **Probitech**. Réalisé par AFRICA LINK BUSINESS. Montants en **USD**.
 
-Le cœur du produit reproduit la logique du **Plan de Passation des Marchés (PPM)** :
-chaque étape d'un marché porte une **date prévisionnelle** et une **date réalisée**, et
-la plateforme calcule automatiquement les **écarts**, les **retards** et les **alertes**.
+Deux piliers :
+- **Plan de Passation des Marchés (PPM)** : chaque étape d'un marché porte une **date
+  prévisionnelle** et une **date réalisée** → **écarts**, **retards** et **alertes** calculés.
+- **Module 8 — Screening, Due Diligence & Intelligence sur les Tiers** : qualification,
+  collecte documentaire, questionnaire, **scoring de risque pondéré**, décision et
+  **surveillance continue** des opérateurs économiques.
 
 ## Démarrage rapide
 
@@ -47,9 +50,10 @@ Mot de passe commun : **`Passw0rd!`**
 4. **Contrats & exécution** — garanties, paiements, réceptions, pénalités, avenants, ordres de service, bons de commande (contrats-cadres).
 5. **Achats sous seuil** — circuit demande → approbation → commande → paiement.
 6. **Fournisseurs** — base unique, historique, évaluation de performance (aide à la décision).
-7. **GED** — dossier électronique par marché, versions, recherche multicritère, flux de fichiers sécurisé.
-8. **Alertes** — retards de publication/étape, échéances de contrat, garanties expirant, retards de livraison, paiements en attente.
-9. **Administration** — utilisateurs & droits (matrice RBAC), modèles de procédure, journal d'audit + export.
+7. **Tiers & Due Diligence (Module 8)** — profil d'identité, pièces + contrôles, questionnaire, **scoring de risque pondéré (8 rubriques + 7 points de contrôle interne)**, workflow de décision (validation / conditionnelle / DD renforcée / rejet), surveillance continue.
+8. **GED** — dossier électronique par marché, versions, recherche multicritère, flux de fichiers sécurisé.
+9. **Alertes** — retards PPM, échéances/garanties/paiements de contrat, et surveillance des tiers (pièces expirant, risque élevé, incidents).
+10. **Administration** — utilisateurs & droits (matrice RBAC), **directions (référentiel FONAREV)**, modèles de procédure, journal d'audit + export.
 
 ## Pile technique
 
