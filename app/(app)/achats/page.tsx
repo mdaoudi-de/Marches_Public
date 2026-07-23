@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { PageHeader, LinkButton, EmptyState, Button, Card, CardBody } from "@/components/ui";
 import { PRStatusBadge } from "@/components/badges";
-import { PURCHASE_THRESHOLD_FC } from "@/lib/config";
+import { PURCHASE_THRESHOLD_USD } from "@/lib/config";
 import { formatFC, formatDate } from "@/lib/utils";
 import { advancePurchaseRequest } from "@/actions/achats";
 
@@ -22,7 +22,7 @@ export default async function AchatsPage() {
     <>
       <PageHeader
         title="Achats sous seuil"
-        subtitle={`Demandes d'achat sous le seuil réglementaire (${formatFC(PURCHASE_THRESHOLD_FC)})`}
+        subtitle={`Demandes d'achat sous le seuil réglementaire (${formatFC(PURCHASE_THRESHOLD_USD)})`}
         actions={canEdit && <LinkButton href="/achats/new"><Plus className="h-4 w-4" /> Nouvelle demande</LinkButton>}
       />
 

@@ -7,13 +7,16 @@ import { can } from "@/lib/rbac";
 import { PageHeader, Card, CardBody, Field, Input, Select, Button } from "@/components/ui";
 import { NATURE_LABELS, label } from "@/lib/enums";
 import { createMarket } from "@/actions/ppm";
-import { TODAY_ISO } from "@/lib/config";
+import { TODAY_ISO, CONTRACTING_AUTHORITY } from "@/lib/config";
 
 export default async function NewMarketPage() {
   const user = await getCurrentUser();
   if (!can(user, "PPM", "edit")) redirect("/ppm");
 
-  const templates = await prisma.procedureTemplate.findMany({ where: { active: true }, orderBy: [{ marketNature: "asc" }, { name: "asc" }] });
+  const [templates, directions] = await Promise.all([
+    prisma.procedureTemplate.findMany({ where: { active: true }, orderBy: [{ marketNature: "asc" }, { name: "asc" }] }),
+    prisma.direction.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+  ]);
 
   return (
     <>
@@ -43,8 +46,20 @@ export default async function NewMarketPage() {
             </Field>
 
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Budget prévisionnel (FC)" htmlFor="budgetAmountFC">
-                <Input id="budgetAmountFC" name="budgetAmountFC" type="number" min="0" required placeholder="Ex. 500000000" />
+              <Field label="Autorité contractante" htmlFor="authority">
+                <Input id="authority" value={CONTRACTING_AUTHORITY} readOnly className="bg-slate-50 text-slate-500" />
+              </Field>
+              <Field label="Direction concernée" htmlFor="directionId">
+                <Select id="directionId" name="directionId" defaultValue="">
+                  <option value="">— Aucune —</option>
+                  {directions.map((dr) => <option key={dr.id} value={dr.id}>{dr.name}</option>)}
+                </Select>
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Budget prévisionnel (USD)" htmlFor="budgetAmountFC">
+                <Input id="budgetAmountFC" name="budgetAmountFC" type="number" min="0" required placeholder="Ex. 180000" />
               </Field>
               <Field label="Code budgétaire" htmlFor="budgetCode">
                 <Input id="budgetCode" name="budgetCode" placeholder="Optionnel" />

@@ -10,7 +10,7 @@ import { formatDateTime } from "@/lib/utils";
 import { createUser, toggleUserActive } from "@/actions/admin";
 import type { Role, AppModule } from "@/lib/enums";
 
-const MODULES: AppModule[] = ["PPM", "PASSATION", "CONTRATS", "ACHATS", "FOURNISSEURS", "GED", "ALERTES", "ADMIN"];
+const MODULES: AppModule[] = ["PPM", "PASSATION", "CONTRATS", "ACHATS", "FOURNISSEURS", "TIERS", "GED", "ALERTES", "ADMIN"];
 
 export default async function AdminUsersPage() {
   const me = await getCurrentUser();

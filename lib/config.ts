@@ -14,7 +14,10 @@ export function today(): Date {
 }
 
 /** Libellé de devise — externalisé pour rester évolutif (spec § interopérabilité). */
-export const CURRENCY_LABEL = "FC";
+export const CURRENCY_LABEL = "USD";
+
+/** Autorité contractante par défaut. */
+export const CONTRACTING_AUTHORITY = "FONAREV";
 
 /** Exercice budgétaire par défaut de la démonstration. */
 export const FISCAL_YEAR = 2026;
@@ -22,5 +25,8 @@ export const FISCAL_YEAR = 2026;
 /** Seuil (jours) d'anticipation des alertes d'échéance. */
 export const ALERT_HORIZON_DAYS = 30;
 
-/** Seuil réglementaire (FC) en-dessous duquel on passe par « Achats sous seuil ». */
-export const PURCHASE_THRESHOLD_FC = 5_000_000;
+/** Seuil réglementaire (USD) en-dessous duquel on passe par « Achats sous seuil ». */
+export const PURCHASE_THRESHOLD_USD = 25_000;
+
+/** Taux de conversion indicatif FC → USD (données de démonstration). */
+export const USD_RATE = 2800;

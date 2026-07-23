@@ -26,6 +26,7 @@ export async function createMarket(formData: FormData): Promise<void> {
   const budgetCode = String(formData.get("budgetCode") ?? "").trim() || null;
   const aoNumber = String(formData.get("aoNumber") ?? "").trim() || null;
   const fiscalYear = Number(formData.get("fiscalYear") ?? 2026);
+  const directionId = formData.get("directionId") ? Number(formData.get("directionId")) : null;
   const start = parseDate(formData.get("startDate")) ?? new Date("2026-07-15T00:00:00.000Z");
 
   if (!intitule || !templateId || !budget) {
@@ -72,6 +73,7 @@ export async function createMarket(formData: FormData): Promise<void> {
       aoNumber,
       fiscalYear,
       status: "PREVU",
+      directionId,
       templateId: template.id,
       createdById: user.id,
       steps: { create: stepsData },
