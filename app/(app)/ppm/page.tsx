@@ -12,7 +12,7 @@ import { NATURE_LABELS, MARKET_STATUS_LABELS, PROCEDURE_LABELS, label } from "@/
 export default async function PpmPage({
   searchParams,
 }: {
-  searchParams: Promise<{ nature?: string; status?: string; year?: string; q?: string }>;
+  searchParams: Promise<{ nature?: string; status?: string; year?: string; q?: string; direction?: string }>;
 }) {
   const sp = await searchParams;
   const user = await getCurrentUser();
@@ -22,15 +22,17 @@ export default async function PpmPage({
   if (sp.nature) where.nature = sp.nature;
   if (sp.status) where.status = sp.status;
   if (sp.year) where.fiscalYear = Number(sp.year);
+  if (sp.direction) where.directionId = Number(sp.direction);
   if (sp.q) where.OR = [{ intitule: { contains: sp.q } }, { reference: { contains: sp.q } }];
 
   const markets = await prisma.market.findMany({
     where,
     orderBy: { reference: "asc" },
-    include: { steps: true, awardedSupplier: { select: { name: true } } },
+    include: { steps: true, awardedSupplier: { select: { name: true } }, direction: { select: { name: true } } },
   });
 
   const years = [...new Set((await prisma.market.findMany({ select: { fiscalYear: true } })).map((m) => m.fiscalYear))].sort();
+  const directions = await prisma.direction.findMany({ where: { active: true }, orderBy: { name: "asc" } });
 
   return (
     <>
@@ -74,6 +76,13 @@ export default async function PpmPage({
             </select>
           </label>
           <label className="flex flex-col">
+            <span className="mb-1 text-xs font-medium text-slate-500">Direction</span>
+            <select name="direction" defaultValue={sp.direction ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5">
+              <option value="">Toutes</option>
+              {directions.map((dr) => <option key={dr.id} value={dr.id}>{dr.name}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col">
             <span className="mb-1 text-xs font-medium text-slate-500">Exercice</span>
             <select name="year" defaultValue={sp.year ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5">
               <option value="">Tous</option>
@@ -112,7 +121,7 @@ export default async function PpmPage({
                     </td>
                     <td className="max-w-xs">
                       <Link href={`/ppm/${m.id}`} className="text-slate-800 hover:underline">{m.intitule}</Link>
-                      <div className="text-xs text-slate-400">{label(PROCEDURE_LABELS, m.procedureType)}</div>
+                      <div className="text-xs text-slate-400">{label(PROCEDURE_LABELS, m.procedureType)}{m.direction ? ` · ${m.direction.name}` : ""}</div>
                     </td>
                     <td><NatureBadge nature={m.nature} /></td>
                     <td className="whitespace-nowrap text-slate-600">{formatCompactFC(m.budgetAmountFC)}</td>

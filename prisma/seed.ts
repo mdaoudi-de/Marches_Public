@@ -9,15 +9,21 @@ import PDFDocument from "pdfkit";
 import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import { recomputeAlerts } from "@/lib/alertes";
+import { runScoring } from "@/lib/tiers-scoring";
+import { TP_DOC_ORDER, TP_DOC_LABELS } from "@/lib/enums";
 import { TEMPLATES, type TemplateDef } from "./templates";
 
 const TODAY = new Date("2026-07-15T00:00:00.000Z");
 const FISCAL_YEAR = 2026;
 const PASSWORD = "Passw0rd!";
+const HAS_BLOB = !!process.env.BLOB_READ_WRITE_TOKEN;
 
 function d(iso: string): Date {
   return new Date(iso + "T00:00:00.000Z");
 }
+/** Conversion des montants de démonstration FC → USD (taux indicatif ~2800). */
+const USD_RATE = 2800;
+const usd = (fc: number) => Math.round(fc / USD_RATE);
 function isMontant(name: string): boolean {
   return /montant du contrat/i.test(name);
 }
@@ -107,7 +113,7 @@ function genPdf(title: string, lines: string[]): Promise<Buffer> {
     doc.fontSize(10).fillColor("#333");
     for (const l of lines) doc.text(l);
     doc.moveDown();
-    doc.fontSize(8).fillColor("#999").text("Document de démonstration — POC de suivi des marchés publics (contenu fictif).");
+    doc.fontSize(8).fillColor("#999").text("Document de démonstration — Probitech (contenu fictif).");
     doc.end();
   });
 }
@@ -117,6 +123,7 @@ async function main() {
   // Ordre de suppression respectant les FK.
   await prisma.marketStepHistory.deleteMany();
   await prisma.alert.deleteMany();
+  await prisma.thirdPartyProfile.deleteMany(); // cascade : rubriques, contrôles, pièces, réponses, investigations, représentants, actionnaires, événements
   await prisma.document.deleteMany();
   await prisma.purchaseOrder.deleteMany();
   await prisma.serviceOrder.deleteMany();
@@ -131,6 +138,7 @@ async function main() {
   await prisma.contract.deleteMany();
   await prisma.marketStep.deleteMany();
   await prisma.market.deleteMany();
+  await prisma.direction.deleteMany();
   await prisma.procedureTemplateStep.deleteMany();
   await prisma.procedureTemplatePhase.deleteMany();
   await prisma.procedureTemplate.deleteMany();
@@ -215,6 +223,29 @@ async function main() {
     templateIdByKey[t.key] = created.id;
   }
 
+  /* --------------------------------------------------------- Directions */
+  console.log("→ Référentiel des directions (FONAREV)…");
+  const directionData = [
+    { code: "DIR_GEN", name: "Direction Générale" },
+    { code: "DIR_INDEMN", name: "Direction des Indemnisations & Réparations" },
+    { code: "DIR_PROJETS", name: "Direction des Projets & Infrastructures" },
+    { code: "DIR_FIN", name: "Direction Financière" },
+    { code: "DIR_PASSATION", name: "Direction de la Passation des Marchés" },
+    { code: "DIR_JURIDIQUE", name: "Direction Juridique & Conformité" },
+  ];
+  const directionIdByCode: Record<string, number> = {};
+  for (const dr of directionData) {
+    const created = await prisma.direction.create({ data: dr });
+    directionIdByCode[dr.code] = created.id;
+  }
+  const directionForNature = (nature: string): number =>
+    directionIdByCode[nature === "TRAVAUX" ? "DIR_PROJETS" : nature === "FOURNITURES_SERVICES" ? "DIR_PASSATION" : "DIR_JURIDIQUE"];
+  const DIRECTION_OVERRIDE: Record<string, string> = {
+    "F-2026-005": "DIR_FIN", "P-2026-002": "DIR_FIN", "F-2026-001": "DIR_GEN", "T-2026-006": "DIR_INDEMN",
+  };
+  // Marchés résiliés (statut RESILIE), + contrats associés résiliés.
+  const RESILIED = new Set(["F-2026-003", "T-2026-003"]);
+
   /* ------------------------------------------------------- Markets + steps */
   console.log("→ Marchés + étapes (moteur Prévu/Réalisé)…");
   const templateByKey: Record<string, TemplateDef> = {};
@@ -236,12 +267,13 @@ async function main() {
         intitule: spec.intitule,
         nature: tpl.nature,
         procedureType: tpl.procedureType,
-        budgetAmountFC: spec.budget,
+        budgetAmountFC: usd(spec.budget),
         budgetCode: `${tpl.nature.slice(0, 3)}-${spec.ref.slice(-3)}`,
         aoNumber: `AO/${FISCAL_YEAR}/${spec.ref}`,
         fiscalYear: FISCAL_YEAR,
-        status: statusFor(spec.scenario),
-        contractAmountFC: contractAmount,
+        status: RESILIED.has(spec.ref) ? "RESILIE" : statusFor(spec.scenario),
+        contractAmountFC: contractAmount != null ? usd(contractAmount) : null,
+        directionId: DIRECTION_OVERRIDE[spec.ref] ? directionIdByCode[DIRECTION_OVERRIDE[spec.ref]] : directionForNature(tpl.nature),
         templateId: templateIdByKey[spec.templateKey],
         awardedSupplierId: hasContract && spec.supplier ? suppliers[spec.supplier].id : null,
         createdById: users.prep.id,
@@ -298,9 +330,9 @@ async function main() {
           }
         } else {
           // MONTANT : réalisé si l'étape date précédente l'est
-          plannedAmountFC = spec.budget;
+          plannedAmountFC = usd(spec.budget);
           realized = lastDateRealized && contractAmount != null;
-          if (realized) actualAmountFC = contractAmount;
+          if (realized && contractAmount != null) actualAmountFC = usd(contractAmount);
         }
 
         const created = await prisma.marketStep.create({
@@ -344,17 +376,20 @@ async function main() {
   await seedEvaluations(users, suppliers, marketIdByRef);
   const docCount = await seedDocuments(users, marketIdByRef);
   await seedAudit(users);
+  await seedThirdParties(users, suppliers);
 
   console.log("→ Calcul des alertes…");
   const summary = await recomputeAlerts();
 
   const counts = {
     users: await prisma.user.count(),
+    directions: await prisma.direction.count(),
     templates: await prisma.procedureTemplate.count(),
     markets: await prisma.market.count(),
     steps: await prisma.marketStep.count(),
     suppliers: await prisma.supplier.count(),
     contracts: await prisma.contract.count(),
+    tiers: await prisma.thirdPartyProfile.count(),
     documents: docCount,
     alerts: summary.active,
   };
@@ -369,6 +404,7 @@ async function seedContracts(
   notif: Record<string, Date | null>,
 ) {
   console.log("→ Contrats & exécution…");
+  const resiliedContracts = new Set(["F-2026-003"]); // contrat résilié (marché RESILIE)
 
   // Table de configuration des contrats (par référence de marché).
   const cfgs: Array<{
@@ -482,19 +518,19 @@ async function seedContracts(
         reference: `CT-${c.ref}`,
         type: c.type ?? "SIMPLE",
         signatureDate: d(c.start),
-        amountFC: c.amount,
+        amountFC: usd(c.amount),
         startDate: d(c.start),
         endDate: d(c.end),
         durationDays: Math.round((d(c.end).getTime() - d(c.start).getTime()) / 86400000),
         guaranteeRetentionPct: 5,
-        status: c.status ?? "ACTIF",
-        guarantees: c.guarantees ? { create: c.guarantees.map((g) => ({ type: g.type, amountFC: g.amount, issueDate: d(g.issue), expiryDate: d(g.expiry), status: g.status ?? "ACTIVE" })) } : undefined,
-        payments: c.payments ? { create: c.payments.map((p) => ({ reference: p.ref, type: p.type, amountFC: p.amount, dueDate: d(p.due), paidDate: p.paid ? d(p.paid) : null, status: p.status })) } : undefined,
+        status: resiliedContracts.has(c.ref) ? "RESILIE" : (c.status ?? "ACTIF"),
+        guarantees: c.guarantees ? { create: c.guarantees.map((g) => ({ type: g.type, amountFC: usd(g.amount), issueDate: d(g.issue), expiryDate: d(g.expiry), status: g.status ?? "ACTIVE" })) } : undefined,
+        payments: c.payments ? { create: c.payments.map((p) => ({ reference: p.ref, type: p.type, amountFC: usd(p.amount), dueDate: d(p.due), paidDate: p.paid ? d(p.paid) : null, status: p.status })) } : undefined,
         receptions: c.receptions ? { create: c.receptions.map((r) => ({ type: r.type, plannedDate: d(r.planned), actualDate: r.actual ? d(r.actual) : null, status: r.status })) } : undefined,
-        penalties: c.penalties ? { create: c.penalties.map((p) => ({ reason: p.reason, amountFC: p.amount, daysLate: p.daysLate, appliedDate: d(p.applied) })) } : undefined,
-        amendments: c.amendments ? { create: c.amendments.map((a) => ({ reference: a.ref, object: a.object, amountDeltaFC: a.delta, newEndDate: a.newEnd ? d(a.newEnd) : null, approvalDate: a.approval ? d(a.approval) : null, status: a.status })) } : undefined,
+        penalties: c.penalties ? { create: c.penalties.map((p) => ({ reason: p.reason, amountFC: usd(p.amount), daysLate: p.daysLate, appliedDate: d(p.applied) })) } : undefined,
+        amendments: c.amendments ? { create: c.amendments.map((a) => ({ reference: a.ref, object: a.object, amountDeltaFC: usd(a.delta), newEndDate: a.newEnd ? d(a.newEnd) : null, approvalDate: a.approval ? d(a.approval) : null, status: a.status })) } : undefined,
         serviceOrders: c.serviceOrders ? { create: c.serviceOrders.map((s) => ({ reference: s.ref, type: s.type, date: d(s.date), object: s.object })) } : undefined,
-        purchaseOrders: c.purchaseOrders ? { create: c.purchaseOrders.map((po) => ({ reference: po.ref, orderDate: d(po.order), amountFC: po.amount, description: po.description, deliveryDate: po.delivery ? d(po.delivery) : null, status: po.status })) } : undefined,
+        purchaseOrders: c.purchaseOrders ? { create: c.purchaseOrders.map((po) => ({ reference: po.ref, orderDate: d(po.order), amountFC: usd(po.amount), description: po.description, deliveryDate: po.delivery ? d(po.delivery) : null, status: po.status })) } : undefined,
       },
     });
   }
@@ -517,13 +553,13 @@ async function seedPurchaseRequests(users: Record<string, { id: number }>, suppl
         reference: r.ref,
         requesterId: users.prep.id,
         description: r.desc,
-        estimatedAmountFC: r.amount,
+        estimatedAmountFC: usd(r.amount),
         status: r.status,
         supplierId: r.supplier ? suppliers[r.supplier].id : null,
         requestDate: d(r.req),
         decisionById: r.dec ? users.sp.id : null,
         decisionDate: r.dec ? d(r.dec) : null,
-        payments: r.pay ? { create: [{ amountFC: r.pay.amount, dueDate: d(r.pay.due), paidDate: r.pay.paid ? d(r.pay.paid) : null, status: r.pay.status }] } : undefined,
+        payments: r.pay ? { create: [{ amountFC: usd(r.pay.amount), dueDate: d(r.pay.due), paidDate: r.pay.paid ? d(r.pay.paid) : null, status: r.pay.status }] } : undefined,
       },
     });
   }
@@ -579,13 +615,16 @@ async function seedDocuments(users: Record<string, { id: number }>, marketIdByRe
       `Version : ${opts.version ?? 1}`,
       `Date : 2026`,
     ].filter(Boolean));
-    const blob = await put(`documents/${fileName}`, buffer, { access: "private", contentType: "application/pdf" });
+    // Stockage Vercel Blob si un jeton est présent ; sinon placeholder (dev local sans Blob).
+    const filePath = HAS_BLOB
+      ? (await put(`documents/${fileName}`, buffer, { access: "private", contentType: "application/pdf" })).url
+      : `local://${fileName}`;
     const doc = await prisma.document.create({
       data: {
         category: opts.category,
         title: opts.title,
         fileName,
-        filePath: blob.url,
+        filePath,
         mimeType: "application/pdf",
         sizeBytes: buffer.length,
         version: opts.version ?? 1,
@@ -649,6 +688,110 @@ async function seedAudit(users: Record<string, { id: number }>) {
         createdAt: new Date(e.at),
       },
     });
+  }
+}
+
+/* ============================ Module 8 — Tiers ============================ */
+type Tier = "FAIBLE" | "MOYEN" | "ELEVE" | "CRITIQUE";
+
+const INVESTIGATION_KEYS = [
+  "VERIF_PHYSIQUE", "VISITE_LOCAUX", "VERIF_BANCAIRE", "REFERENCES_CLIENTS", "BENEF_EFFECTIFS",
+  "ANALYSE_FINANCIERE", "SOUS_TRAITANTS", "ENTRETIEN_DIRIGEANTS", "CONFLITS_INTERETS", "MEDIAS",
+];
+const DD_KEYS = ["ANTICORRUPTION", "CODE_CONDUITE", "CONDAMNATION", "EXCLUSION_MP", "PROCEDURE_JUDICIAIRE", "LIENS_AGENTS_PUBLICS", "LBC_FT"];
+
+function docRow(type: string, state: string) {
+  const title = TP_DOC_LABELS[type as keyof typeof TP_DOC_LABELS];
+  if (state === "missing") return { docType: type, title, provided: false, controlStatus: "MANQUANT" };
+  const expiry = state === "expired" ? d("2026-06-20") : state === "soon" ? d("2026-08-05") : d("2027-06-30");
+  return { docType: type, title, provided: true, issueDate: d("2025-01-15"), expiryDate: expiry, controlStatus: state === "expired" ? "EXPIRE" : "OK" };
+}
+
+async function seedThirdParties(users: Record<string, { id: number }>, suppliers: Record<string, { id: number }>) {
+  console.log("→ Tiers & Due Diligence (Module 8)…");
+
+  const tierBy: Record<string, Tier> = {
+    "ROUTES & OUVRAGES SA": "FAIBLE", "CABINET AUDIT & CONSEIL": "FAIBLE", "INFOTECH SARL": "FAIBLE", "GÉNIE CIVIL PLUS": "FAIBLE",
+    "CONGO BÂTIR SARL": "MOYEN", "AUTO DISTRIB CONGO": "MOYEN", "PÉTRO CONGO": "MOYEN", "PAPETERIE CENTRALE": "MOYEN",
+    "ELEC CONGO SARL": "ELEVE", "HYDRO CONSULT INTL": "ELEVE", "DIGITAL STRATEGY SARL": "ELEVE",
+    "MEUBLES DU FLEUVE": "CRITIQUE",
+  };
+
+  const docStates: Record<Tier, string[]> = {
+    FAIBLE: Array(11).fill("ok"),
+    MOYEN: ["ok", "ok", "soon", "expired", "missing", "expired", "missing", "ok", "ok", "missing", "ok"],
+    ELEVE: ["ok", "ok", "expired", "expired", "missing", "soon", "expired", "ok", "missing", "ok", "ok"],
+    CRITIQUE: ["expired", "missing", "expired", "expired", "missing", "missing", "expired", "missing", "expired", "missing", "expired"],
+  };
+  const answersByTier: Record<Tier, Record<string, string>> = {
+    FAIBLE: { ANTICORRUPTION: "OUI", CODE_CONDUITE: "OUI", CONDAMNATION: "NON", EXCLUSION_MP: "NON", PROCEDURE_JUDICIAIRE: "NON", LIENS_AGENTS_PUBLICS: "NON", LBC_FT: "OUI" },
+    MOYEN: { ANTICORRUPTION: "OUI", CODE_CONDUITE: "NON", CONDAMNATION: "NON", EXCLUSION_MP: "NON", PROCEDURE_JUDICIAIRE: "NON", LIENS_AGENTS_PUBLICS: "NON", LBC_FT: "NON" },
+    ELEVE: { ANTICORRUPTION: "NON", CODE_CONDUITE: "NON", CONDAMNATION: "NON", EXCLUSION_MP: "NON", PROCEDURE_JUDICIAIRE: "OUI", LIENS_AGENTS_PUBLICS: "OUI", LBC_FT: "NON" },
+    CRITIQUE: { ANTICORRUPTION: "NON", CODE_CONDUITE: "NON", CONDAMNATION: "OUI", EXCLUSION_MP: "OUI", PROCEDURE_JUDICIAIRE: "OUI", LIENS_AGENTS_PUBLICS: "OUI", LBC_FT: "NON" },
+  };
+  const eventsByTier: Record<Tier, { type: string; detail: string }[]> = {
+    FAIBLE: [],
+    MOYEN: [{ type: "CHANGEMENT_DIRIGEANT", detail: "Nomination d'un nouveau directeur général" }],
+    ELEVE: [{ type: "DECISION_JUDICIAIRE", detail: "Litige commercial en cours d'instruction" }],
+    CRITIQUE: [{ type: "NOUVELLE_SANCTION", detail: "Sanction administrative prononcée" }, { type: "FAILLITE", detail: "Procédure de redressement judiciaire" }],
+  };
+  const manualControls: Record<Tier, string[]> = { FAIBLE: [], MOYEN: ["C7"], ELEVE: ["C5"], CRITIQUE: ["C2", "C5"] };
+  const decisionByTier: Record<Tier, string> = { FAIBLE: "VALIDE", MOYEN: "VALIDE_CONDITIONNEL", ELEVE: "DD_RENFORCEE", CRITIQUE: "REJETE" };
+
+  let idx = 0;
+  for (const [name, tier] of Object.entries(tierBy)) {
+    idx++;
+    const complete = tier === "FAIBLE" || tier === "MOYEN";
+    const states = docStates[tier];
+    const ans = answersByTier[tier];
+
+    const shareholders =
+      tier === "FAIBLE" || tier === "MOYEN"
+        ? [{ name: `${name} — actionnaire majoritaire`, sharePct: 60, isBeneficialOwner: true }, { name: "Actionnaire minoritaire", sharePct: 40, isBeneficialOwner: false }]
+        : tier === "ELEVE"
+        ? [{ name: `${name} — actionnaire principal`, sharePct: 70, isBeneficialOwner: false }]
+        : [{ name: "Actionnaire non identifié", sharePct: 55, isBeneficialOwner: false }];
+    const reps =
+      tier === "FAIBLE" || tier === "MOYEN"
+        ? [{ role: "GERANT", fullName: "M. Directeur Gérant" }, { role: "DG", fullName: "Mme Directrice Générale" }]
+        : tier === "ELEVE"
+        ? [{ role: "GERANT", fullName: "M. Gérant" }]
+        : [];
+
+    // Investigations : renseignées si risque élevé/critique
+    const investigations = INVESTIGATION_KEYS.map((k) => {
+      if (tier === "ELEVE" && (k === "MEDIAS" || k === "VERIF_BANCAIRE")) return { itemKey: k, status: "FAIT", result: k === "MEDIAS" ? "ANOMALIE" : "RAS" };
+      if (tier === "CRITIQUE" && (k === "MEDIAS" || k === "CONFLITS_INTERETS")) return { itemKey: k, status: "FAIT", result: "ANOMALIE" };
+      if (tier === "CRITIQUE" && (k === "VERIF_PHYSIQUE" || k === "BENEF_EFFECTIFS")) return { itemKey: k, status: "FAIT", result: "RAS" };
+      return { itemKey: k, status: "A_FAIRE" as string, result: null as string | null };
+    });
+
+    const profile = await prisma.thirdPartyProfile.create({
+      data: {
+        denomination: name,
+        supplierId: suppliers[name].id,
+        rccm: `CG-BZV-2020-B-${2000 + idx}`,
+        idNational: complete || tier === "ELEVE" ? `01-N${100000 + idx}` : null,
+        nif: `A${2020000 + idx}`,
+        taxNumber: complete ? `IMP-${5000 + idx}` : null,
+        address: `${idx} boulevard du 30 juin`,
+        province: "Kinshasa",
+        city: "Kinshasa",
+        sector: "Divers",
+        creationDate: complete ? d("2015-03-10") : null,
+        stage: "SURVEILLANCE",
+        decision: decisionByTier[tier],
+        createdById: users.prep.id,
+        documents: { create: TP_DOC_ORDER.map((t, i) => docRow(t, states[i])) },
+        answers: { create: DD_KEYS.map((q) => ({ questionKey: q, answer: ans[q] })) },
+        investigations: { create: investigations },
+        representatives: { create: reps },
+        shareholders: { create: shareholders },
+        events: { create: eventsByTier[tier].map((e) => ({ type: e.type, detail: e.detail, detectedAt: d("2026-07-05"), resolved: false })) },
+        controls: { create: manualControls[tier].map((k) => ({ controlKey: k, triggered: true, computed: false, severity: "WARNING" })) },
+      },
+    });
+    await runScoring(profile.id, { skipAlerts: true });
   }
 }
 

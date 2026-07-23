@@ -10,6 +10,10 @@ import {
   PO_STATUS_LABELS, PO_STATUS_TONE,
   PR_STATUS_LABELS, PR_STATUS_TONE,
   ALERT_SEVERITY_LABELS, ALERT_SEVERITY_TONE,
+  RISK_LEVEL_LABELS, RISK_LEVEL_TONE,
+  DECISION_LABELS, DECISION_TONE,
+  DOC_CONTROL_LABELS, DOC_CONTROL_TONE,
+  STAGE_LABELS,
   NATURE_LABELS, PROCEDURE_LABELS,
   label,
 } from "@/lib/enums";
@@ -29,6 +33,13 @@ export const GuaranteeStatusBadge = make(GUARANTEE_STATUS_LABELS, GUARANTEE_STAT
 export const POStatusBadge = make(PO_STATUS_LABELS, PO_STATUS_TONE);
 export const PRStatusBadge = make(PR_STATUS_LABELS, PR_STATUS_TONE);
 export const AlertSeverityBadge = make(ALERT_SEVERITY_LABELS, ALERT_SEVERITY_TONE);
+export const RiskBadge = make(RISK_LEVEL_LABELS, RISK_LEVEL_TONE);
+export const DecisionBadge = make(DECISION_LABELS, DECISION_TONE);
+export const DocControlBadge = make(DOC_CONTROL_LABELS, DOC_CONTROL_TONE);
+
+export function StageBadge({ value }: { value: string }) {
+  return <Badge tone="slate">{label(STAGE_LABELS, value)}</Badge>;
+}
 
 /** Statut d'étape dérivé au runtime à partir des dates. */
 export function StepStatusBadge({ step }: { step: StepLike }) {

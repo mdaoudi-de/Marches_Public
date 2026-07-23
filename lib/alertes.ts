@@ -7,7 +7,7 @@ import { addDays, differenceInCalendarDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { today, ALERT_HORIZON_DAYS } from "@/lib/config";
 import { formatDate } from "@/lib/utils";
-import { GUARANTEE_TYPE_LABELS, label } from "@/lib/enums";
+import { GUARANTEE_TYPE_LABELS, MONITORING_LABELS, label } from "@/lib/enums";
 
 interface CandidateAlert {
   type: string;
@@ -16,6 +16,7 @@ interface CandidateAlert {
   message: string;
   marketId?: number | null;
   contractId?: number | null;
+  thirdPartyProfileId?: number | null;
   dueDate?: Date | null;
 }
 
@@ -121,6 +122,73 @@ export async function recomputeAlerts(): Promise<AlertRecomputeSummary> {
     });
   }
 
+  /* ================= Module 8 — Surveillance continue des tiers ========== */
+
+  /* 6. Pièces d'un tiers arrivant à expiration */
+  const tpDocs = await prisma.thirdPartyDocument.findMany({
+    where: { provided: true, expiryDate: { lte: horizon } },
+    include: { profile: { select: { id: true, denomination: true } } },
+  });
+  for (const dd of tpDocs) {
+    const expired = dd.expiryDate! < now;
+    candidates.push({
+      type: "DOC_TIERS_EXPIRATION",
+      refEntity: `ThirdPartyDocument:${dd.id}`,
+      severity: expired ? "CRITIQUE" : "WARNING",
+      message: `${dd.profile.denomination} — pièce « ${dd.title} » ${expired ? "expirée" : "expire"} le ${formatDate(dd.expiryDate)}.`,
+      thirdPartyProfileId: dd.profileId,
+      dueDate: dd.expiryDate,
+    });
+  }
+
+  /* 7. Tiers à risque élevé ou critique */
+  const riskyProfiles = await prisma.thirdPartyProfile.findMany({
+    where: { riskLevel: { in: ["ELEVE", "CRITIQUE"] } },
+    select: { id: true, denomination: true, riskLevel: true, riskScore: true },
+  });
+  for (const pr of riskyProfiles) {
+    candidates.push({
+      type: "TIERS_RISQUE_ELEVE",
+      refEntity: `ThirdPartyProfile:${pr.id}`,
+      severity: pr.riskLevel === "CRITIQUE" ? "CRITIQUE" : "WARNING",
+      message: `${pr.denomination} — niveau de risque ${pr.riskLevel === "CRITIQUE" ? "critique" : "élevé"} (score ${Math.round(pr.riskScore ?? 0)}/100).`,
+      thirdPartyProfileId: pr.id,
+    });
+  }
+
+  /* 8. Réévaluations de tiers échues */
+  const dueReviews = await prisma.thirdPartyProfile.findMany({
+    where: { nextReviewAt: { lt: now } },
+    select: { id: true, denomination: true, nextReviewAt: true },
+  });
+  for (const pr of dueReviews) {
+    candidates.push({
+      type: "TIERS_REEVALUATION_DUE",
+      refEntity: `ThirdPartyProfile:${pr.id}`,
+      severity: "WARNING",
+      message: `${pr.denomination} — réévaluation échue depuis le ${formatDate(pr.nextReviewAt)}.`,
+      thirdPartyProfileId: pr.id,
+      dueDate: pr.nextReviewAt,
+    });
+  }
+
+  /* 9. Incidents de surveillance non résolus */
+  const incidents = await prisma.thirdPartyMonitoringEvent.findMany({
+    where: { resolved: false },
+    include: { profile: { select: { id: true, denomination: true } } },
+  });
+  for (const ev of incidents) {
+    const critical = ["NOUVELLE_SANCTION", "DECISION_JUDICIAIRE", "FAILLITE"].includes(ev.type);
+    candidates.push({
+      type: "TIERS_INCIDENT",
+      refEntity: `ThirdPartyMonitoringEvent:${ev.id}`,
+      severity: critical ? "CRITIQUE" : "WARNING",
+      message: `${ev.profile.denomination} — ${label(MONITORING_LABELS, ev.type)}${ev.detail ? ` : ${ev.detail}` : ""}.`,
+      thirdPartyProfileId: ev.profileId,
+      dueDate: ev.detectedAt,
+    });
+  }
+
   /* Upsert idempotent */
   let created = 0;
   let updated = 0;
@@ -143,6 +211,7 @@ export async function recomputeAlerts(): Promise<AlertRecomputeSummary> {
           message: c.message,
           marketId: c.marketId ?? null,
           contractId: c.contractId ?? null,
+          thirdPartyProfileId: c.thirdPartyProfileId ?? null,
           dueDate: c.dueDate ?? null,
           status: "ACTIVE",
           createdAt: now,

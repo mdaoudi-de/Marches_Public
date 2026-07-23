@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { PageHeader, Card, CardBody, Field, Input, Textarea, Button } from "@/components/ui";
-import { PURCHASE_THRESHOLD_FC } from "@/lib/config";
+import { PURCHASE_THRESHOLD_USD } from "@/lib/config";
 import { formatFC } from "@/lib/utils";
 import { createPurchaseRequest } from "@/actions/achats";
 
@@ -19,14 +19,14 @@ export default async function NewPurchaseRequestPage() {
           <ArrowLeft className="h-3.5 w-3.5" /> Achats
         </Link>
       </div>
-      <PageHeader title="Nouvelle demande d'achat" subtitle={`Pour un montant inférieur au seuil réglementaire (${formatFC(PURCHASE_THRESHOLD_FC)}).`} />
+      <PageHeader title="Nouvelle demande d'achat" subtitle={`Pour un montant inférieur au seuil réglementaire (${formatFC(PURCHASE_THRESHOLD_USD)}).`} />
       <Card className="max-w-xl">
         <CardBody>
           <form action={createPurchaseRequest} className="space-y-4">
             <Field label="Objet de la demande" htmlFor="description">
               <Textarea id="description" name="description" required placeholder="Ex. Fournitures de papeterie pour le 3e trimestre" />
             </Field>
-            <Field label="Montant estimé (FC)" htmlFor="estimatedAmountFC">
+            <Field label="Montant estimé (USD)" htmlFor="estimatedAmountFC">
               <Input id="estimatedAmountFC" name="estimatedAmountFC" type="number" min="0" required placeholder="Ex. 2500000" />
             </Field>
             <div className="flex justify-end gap-2 pt-2">

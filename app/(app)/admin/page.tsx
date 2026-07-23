@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Users, ListTree, ScrollText } from "lucide-react";
+import { Users, ListTree, ScrollText, Network } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
@@ -11,14 +11,16 @@ export default async function AdminPage() {
   if (!can(user, "ADMIN", "view")) redirect("/dashboard");
   const isAdmin = can(user, "ADMIN", "admin");
 
-  const [users, templates, logs] = await Promise.all([
+  const [users, templates, logs, directions] = await Promise.all([
     prisma.user.count(),
     prisma.procedureTemplate.count(),
     prisma.auditLog.count(),
+    prisma.direction.count(),
   ]);
 
   const cards = [
     { href: "/admin/users", icon: Users, title: "Utilisateurs & droits", desc: `${users} comptes — profils et niveaux d'accès`, show: true },
+    { href: "/admin/directions", icon: Network, title: "Directions", desc: `${directions} directions — référentiel FONAREV`, show: true },
     { href: "/admin/templates", icon: ListTree, title: "Modèles de procédure", desc: `${templates} modèles — phases et étapes paramétrables`, show: true },
     { href: "/admin/journal", icon: ScrollText, title: "Journal d'audit", desc: `${logs} événements — traçabilité et export`, show: true },
   ];
@@ -26,7 +28,7 @@ export default async function AdminPage() {
   return (
     <>
       <PageHeader title="Administration" subtitle={isAdmin ? "Gestion des utilisateurs, du référentiel et de la traçabilité" : "Consultation (accès restreint)"} />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.filter((c) => c.show).map((c) => {
           const Icon = c.icon;
           return (

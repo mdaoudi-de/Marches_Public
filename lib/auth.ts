@@ -9,8 +9,10 @@ export interface SessionUser {
 }
 
 /**
- * Authentification désactivée pour ce déploiement : toutes les actions sont
- * exécutées comme l'administrateur système (premier utilisateur de rôle ADMIN).
+ * Authentification désactivée pour ce déploiement de démonstration (Vercel) :
+ * toutes les actions s'exécutent comme l'administrateur système (premier
+ * utilisateur de rôle ADMIN). Pour réactiver une vraie authentification,
+ * restaurer la version jose/cookie (voir branche feat/module8-tiers-usd-fonarev).
  */
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const user = await prisma.user.findFirst({ where: { role: "ADMIN" } });

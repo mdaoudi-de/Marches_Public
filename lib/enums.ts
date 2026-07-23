@@ -60,7 +60,7 @@ export const PROCEDURE_LABELS: Record<ProcedureType, string> = {
   SC_INDIVIDUEL: "Consultant individuel",
 };
 
-export type MarketStatus = "PREVU" | "LANCE" | "ATTRIBUE" | "EXECUTE" | "CLOTURE";
+export type MarketStatus = "PREVU" | "LANCE" | "ATTRIBUE" | "EXECUTE" | "CLOTURE" | "RESILIE";
 
 export const MARKET_STATUS_LABELS: Record<MarketStatus, string> = {
   PREVU: "Prévu",
@@ -68,6 +68,7 @@ export const MARKET_STATUS_LABELS: Record<MarketStatus, string> = {
   ATTRIBUE: "Attribué",
   EXECUTE: "Exécuté",
   CLOTURE: "Clôturé",
+  RESILIE: "Résilié",
 };
 
 export const MARKET_STATUS_TONE: Record<MarketStatus, Tone> = {
@@ -76,6 +77,7 @@ export const MARKET_STATUS_TONE: Record<MarketStatus, Tone> = {
   ATTRIBUE: "violet",
   EXECUTE: "amber",
   CLOTURE: "green",
+  RESILIE: "red",
 };
 
 export type StepStatus = "A_VENIR" | "EN_COURS" | "REALISE" | "EN_RETARD";
@@ -282,7 +284,11 @@ export type AlertType =
   | "ECHEANCE_CONTRAT"
   | "GARANTIE_EXPIRATION"
   | "RETARD_LIVRAISON"
-  | "PAIEMENT_ATTENTE";
+  | "PAIEMENT_ATTENTE"
+  | "DOC_TIERS_EXPIRATION"
+  | "TIERS_RISQUE_ELEVE"
+  | "TIERS_REEVALUATION_DUE"
+  | "TIERS_INCIDENT";
 
 export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   RETARD_PUBLICATION: "Retard de publication",
@@ -291,6 +297,10 @@ export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   GARANTIE_EXPIRATION: "Garantie arrivant à expiration",
   RETARD_LIVRAISON: "Retard de livraison",
   PAIEMENT_ATTENTE: "Paiement en attente",
+  DOC_TIERS_EXPIRATION: "Pièce d'un tiers arrivant à expiration",
+  TIERS_RISQUE_ELEVE: "Tiers à risque élevé",
+  TIERS_REEVALUATION_DUE: "Réévaluation d'un tiers échue",
+  TIERS_INCIDENT: "Incident de surveillance (tiers)",
 };
 
 export type AlertSeverity = "INFO" | "WARNING" | "CRITIQUE";
@@ -340,6 +350,7 @@ export type AppModule =
   | "CONTRATS"
   | "ACHATS"
   | "FOURNISSEURS"
+  | "TIERS"
   | "GED"
   | "ALERTES"
   | "ADMIN";
@@ -349,3 +360,140 @@ export function label<T extends string>(map: Record<T, string>, key: string | nu
   if (!key) return "—";
   return (map as Record<string, string>)[key] ?? key;
 }
+
+/* ================= Module 8 — Tiers / Due Diligence ===================== */
+
+export type RiskLevel = "FAIBLE" | "MOYEN" | "ELEVE" | "CRITIQUE";
+export const RISK_LEVEL_LABELS: Record<RiskLevel, string> = {
+  FAIBLE: "Faible", MOYEN: "Moyen", ELEVE: "Élevé", CRITIQUE: "Critique",
+};
+export const RISK_LEVEL_TONE: Record<RiskLevel, Tone> = {
+  FAIBLE: "green", MOYEN: "amber", ELEVE: "red", CRITIQUE: "red",
+};
+
+export type ThirdPartyDecision = "VALIDE" | "VALIDE_CONDITIONNEL" | "DD_RENFORCEE" | "REJETE";
+export const DECISION_LABELS: Record<ThirdPartyDecision, string> = {
+  VALIDE: "Validé", VALIDE_CONDITIONNEL: "Validation conditionnelle",
+  DD_RENFORCEE: "Due diligence renforcée", REJETE: "Rejeté",
+};
+export const DECISION_TONE: Record<ThirdPartyDecision, Tone> = {
+  VALIDE: "green", VALIDE_CONDITIONNEL: "amber", DD_RENFORCEE: "violet", REJETE: "red",
+};
+
+export type ThirdPartyStage =
+  | "ENREGISTRE" | "COLLECTE" | "VERIF_AUTO" | "QUESTIONNAIRE" | "SCREENING"
+  | "SCORING" | "DECISION" | "SURVEILLANCE" | "REEVALUATION";
+export const STAGE_LABELS: Record<ThirdPartyStage, string> = {
+  ENREGISTRE: "Enregistré", COLLECTE: "Collecte documentaire", VERIF_AUTO: "Vérifications automatiques",
+  QUESTIONNAIRE: "Questionnaire DD", SCREENING: "Screening", SCORING: "Scoring",
+  DECISION: "Décision", SURVEILLANCE: "Surveillance continue", REEVALUATION: "Réévaluation",
+};
+
+export const REPRESENTATIVE_ROLE_LABELS: Record<string, string> = {
+  GERANT: "Gérant", DG: "Directeur Général", PRESIDENT: "Président", PERSONNE_HABILITEE: "Personne habilitée",
+};
+
+export type ThirdPartyDocType =
+  | "RCCM" | "ID_NATIONAL" | "NIF" | "ATTESTATION_FISCALE" | "ATTESTATION_CNSS"
+  | "AGREMENT" | "LICENCE" | "STATUTS" | "PIECE_DIRIGEANT" | "PROCURATION" | "RIB";
+export const TP_DOC_LABELS: Record<ThirdPartyDocType, string> = {
+  RCCM: "RCCM", ID_NATIONAL: "ID National", NIF: "NIF", ATTESTATION_FISCALE: "Attestation fiscale",
+  ATTESTATION_CNSS: "Attestation CNSS", AGREMENT: "Agrément", LICENCE: "Licence", STATUTS: "Statuts",
+  PIECE_DIRIGEANT: "Pièce d'identité des dirigeants", PROCURATION: "Procuration", RIB: "RIB bancaire",
+};
+export const TP_DOC_ORDER: ThirdPartyDocType[] = [
+  "RCCM", "ID_NATIONAL", "NIF", "ATTESTATION_FISCALE", "ATTESTATION_CNSS",
+  "AGREMENT", "LICENCE", "STATUTS", "PIECE_DIRIGEANT", "PROCURATION", "RIB",
+];
+
+export type DocControlStatus = "OK" | "MANQUANT" | "EXPIRE" | "INCOHERENT" | "FORMAT_INVALIDE" | "DOUBLON";
+export const DOC_CONTROL_LABELS: Record<DocControlStatus, string> = {
+  OK: "Conforme", MANQUANT: "Manquant", EXPIRE: "Expiré", INCOHERENT: "Incohérent",
+  FORMAT_INVALIDE: "Format invalide", DOUBLON: "Doublon",
+};
+export const DOC_CONTROL_TONE: Record<DocControlStatus, Tone> = {
+  OK: "green", MANQUANT: "red", EXPIRE: "red", INCOHERENT: "amber", FORMAT_INVALIDE: "amber", DOUBLON: "amber",
+};
+
+export type DueDiligenceQuestion =
+  | "ANTICORRUPTION" | "CODE_CONDUITE" | "CONDAMNATION" | "EXCLUSION_MP"
+  | "PROCEDURE_JUDICIAIRE" | "LIENS_AGENTS_PUBLICS" | "LBC_FT";
+export const DD_QUESTION_LABELS: Record<DueDiligenceQuestion, string> = {
+  ANTICORRUPTION: "Disposez-vous d'un programme anticorruption ?",
+  CODE_CONDUITE: "Disposez-vous d'un code de conduite ?",
+  CONDAMNATION: "Avez-vous déjà été condamné ?",
+  EXCLUSION_MP: "Avez-vous déjà été exclu d'un marché public ?",
+  PROCEDURE_JUDICIAIRE: "Êtes-vous impliqué dans une procédure judiciaire ?",
+  LIENS_AGENTS_PUBLICS: "Avez-vous des liens avec des agents publics ?",
+  LBC_FT: "Disposez-vous d'une politique LBC/FT ?",
+};
+/** Réponse considérée « à risque » pour chaque question. */
+export const DD_RISKY_ANSWER: Record<DueDiligenceQuestion, "OUI" | "NON"> = {
+  ANTICORRUPTION: "NON", CODE_CONDUITE: "NON", CONDAMNATION: "OUI", EXCLUSION_MP: "OUI",
+  PROCEDURE_JUDICIAIRE: "OUI", LIENS_AGENTS_PUBLICS: "OUI", LBC_FT: "NON",
+};
+export const DD_ORDER: DueDiligenceQuestion[] = [
+  "ANTICORRUPTION", "CODE_CONDUITE", "CONDAMNATION", "EXCLUSION_MP",
+  "PROCEDURE_JUDICIAIRE", "LIENS_AGENTS_PUBLICS", "LBC_FT",
+];
+
+export type InvestigationItem =
+  | "VERIF_PHYSIQUE" | "VISITE_LOCAUX" | "VERIF_BANCAIRE" | "REFERENCES_CLIENTS" | "BENEF_EFFECTIFS"
+  | "ANALYSE_FINANCIERE" | "SOUS_TRAITANTS" | "ENTRETIEN_DIRIGEANTS" | "CONFLITS_INTERETS" | "MEDIAS";
+export const INVESTIGATION_LABELS: Record<InvestigationItem, string> = {
+  VERIF_PHYSIQUE: "Vérification physique de l'entreprise", VISITE_LOCAUX: "Visite des locaux",
+  VERIF_BANCAIRE: "Vérification bancaire", REFERENCES_CLIENTS: "Vérification des références clients",
+  BENEF_EFFECTIFS: "Contrôle des bénéficiaires effectifs", ANALYSE_FINANCIERE: "Analyse financière",
+  SOUS_TRAITANTS: "Vérification des sous-traitants", ENTRETIEN_DIRIGEANTS: "Entretien avec les dirigeants",
+  CONFLITS_INTERETS: "Vérification des conflits d'intérêts", MEDIAS: "Analyse des médias",
+};
+export const INVESTIGATION_ORDER: InvestigationItem[] = [
+  "VERIF_PHYSIQUE", "VISITE_LOCAUX", "VERIF_BANCAIRE", "REFERENCES_CLIENTS", "BENEF_EFFECTIFS",
+  "ANALYSE_FINANCIERE", "SOUS_TRAITANTS", "ENTRETIEN_DIRIGEANTS", "CONFLITS_INTERETS", "MEDIAS",
+];
+
+export type RiskRubric =
+  | "IDENTITE_JURIDIQUE" | "SITUATION_ADMINISTRATIVE" | "DOCUMENTS" | "SITUATION_FISCALE"
+  | "GOUVERNANCE" | "REPUTATION" | "HISTORIQUE_MARCHES" | "INTEGRITE";
+export const RUBRIC_LABELS: Record<RiskRubric, string> = {
+  IDENTITE_JURIDIQUE: "Identité juridique", SITUATION_ADMINISTRATIVE: "Situation administrative",
+  DOCUMENTS: "Documents", SITUATION_FISCALE: "Situation fiscale", GOUVERNANCE: "Gouvernance",
+  REPUTATION: "Réputation", HISTORIQUE_MARCHES: "Historique des marchés", INTEGRITE: "Intégrité",
+};
+/** Pondérations (Σ = 100) issues du document source. */
+export const RUBRIC_WEIGHTS: Record<RiskRubric, number> = {
+  IDENTITE_JURIDIQUE: 15, SITUATION_ADMINISTRATIVE: 10, DOCUMENTS: 10, SITUATION_FISCALE: 10,
+  GOUVERNANCE: 10, REPUTATION: 15, HISTORIQUE_MARCHES: 15, INTEGRITE: 15,
+};
+export const RUBRIC_ORDER: RiskRubric[] = [
+  "IDENTITE_JURIDIQUE", "SITUATION_ADMINISTRATIVE", "DOCUMENTS", "SITUATION_FISCALE",
+  "GOUVERNANCE", "REPUTATION", "HISTORIQUE_MARCHES", "INTEGRITE",
+];
+
+export type InternalControlKey = "C1" | "C2" | "C3" | "C4" | "C5" | "C7" | "C8";
+export const CONTROL_LABELS: Record<InternalControlKey, string> = {
+  C1: "Récurrence d'attribution de marchés de même type au tiers",
+  C2: "Absence de concurrence effective (faute de candidats)",
+  C3: "Attribution récurrente à un tiers dont la note technique < 2,5/10",
+  C4: "Conformité aux attentes de la « fiche bilan » des marchés précédents",
+  C5: "Signalements sur l'intégrité (conflit d'intérêts, agent FONAREV)",
+  C7: "Performance du contrôle comptable",
+  C8: "Performance du contrôle interne de la direction (suivi des prestations)",
+};
+export const CONTROL_ORDER: InternalControlKey[] = ["C1", "C2", "C3", "C4", "C5", "C7", "C8"];
+
+export type MonitoringEventType =
+  | "CHANGEMENT_DIRIGEANT" | "CHANGEMENT_ACTIONNARIAT" | "MODIF_RCCM" | "NOUVELLE_SANCTION"
+  | "DECISION_JUDICIAIRE" | "FAILLITE" | "INCIDENT_CONTRACTUEL" | "PENALITES_REPETEES"
+  | "DEPASSEMENT_DELAIS" | "CHANGEMENT_RIB" | "VARIATION_MONTANTS";
+export const MONITORING_LABELS: Record<MonitoringEventType, string> = {
+  CHANGEMENT_DIRIGEANT: "Changement de dirigeant", CHANGEMENT_ACTIONNARIAT: "Changement d'actionnariat",
+  MODIF_RCCM: "Modification du RCCM", NOUVELLE_SANCTION: "Nouvelle sanction",
+  DECISION_JUDICIAIRE: "Décision judiciaire", FAILLITE: "Faillite ou dissolution",
+  INCIDENT_CONTRACTUEL: "Incident contractuel", PENALITES_REPETEES: "Pénalités répétées",
+  DEPASSEMENT_DELAIS: "Dépassement des délais contractuels", CHANGEMENT_RIB: "Modification des coordonnées bancaires",
+  VARIATION_MONTANTS: "Variation inhabituelle des montants facturés",
+};
+
+export type AnswerYNU = "OUI" | "NON" | "NSP";
+export const ANSWER_LABELS: Record<AnswerYNU, string> = { OUI: "Oui", NON: "Non", NSP: "Non renseigné" };

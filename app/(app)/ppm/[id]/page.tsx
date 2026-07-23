@@ -7,6 +7,7 @@ import { can } from "@/lib/rbac";
 import { PageHeader, Card, CardBody, StatCard, LinkButton, Badge } from "@/components/ui";
 import { MarketStatusBadge, NatureBadge } from "@/components/badges";
 import { MarketGrid, type GridStep } from "@/components/ppm/market-grid";
+import { StatusChanger } from "@/components/ppm/status-changer";
 import { marketProgress } from "@/lib/ecarts";
 import { formatFC, formatDate, humanDelay, toDateInput } from "@/lib/utils";
 import { PROCEDURE_LABELS, label } from "@/lib/enums";
@@ -20,6 +21,7 @@ export default async function MarketDetailPage({ params }: { params: Promise<{ i
       steps: { orderBy: { order: "asc" } },
       template: { select: { name: true } },
       awardedSupplier: { select: { id: true, name: true } },
+      direction: { select: { name: true } },
       createdBy: { select: { fullName: true } },
       contracts: { select: { id: true } },
       _count: { select: { documents: true } },
@@ -45,6 +47,8 @@ export default async function MarketDetailPage({ params }: { params: Promise<{ i
   }));
 
   const meta: [string, React.ReactNode][] = [
+    ["Autorité contractante", market.contractingAuthority],
+    ["Direction concernée", market.direction?.name ?? "—"],
     ["Procédure", label(PROCEDURE_LABELS, market.procedureType)],
     ["Budget prévisionnel", formatFC(market.budgetAmountFC)],
     ["Montant du contrat", market.contractAmountFC != null ? formatFC(market.contractAmountFC) : "—"],
@@ -71,6 +75,7 @@ export default async function MarketDetailPage({ params }: { params: Promise<{ i
         subtitle={market.intitule}
         actions={
           <>
+            {canEdit && <StatusChanger marketId={market.id} status={market.status} />}
             <LinkButton href={`/api/export/ppm?market=${market.id}`} variant="outline"><Download className="h-4 w-4" /> Excel</LinkButton>
             <LinkButton href={`/api/export/ppm?market=${market.id}&format=pdf`} variant="outline"><FileText className="h-4 w-4" /> PDF</LinkButton>
             <LinkButton href={`/passation/${market.id}`} variant="outline"><Gavel className="h-4 w-4" /> Passation</LinkButton>

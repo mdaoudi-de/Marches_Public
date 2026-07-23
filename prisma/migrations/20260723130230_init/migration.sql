@@ -78,6 +78,8 @@ CREATE TABLE "Market" (
     "budgetAmountFC" DOUBLE PRECISION NOT NULL,
     "budgetCode" TEXT,
     "aoNumber" TEXT,
+    "contractingAuthority" TEXT NOT NULL DEFAULT 'FONAREV',
+    "directionId" INTEGER,
     "fiscalYear" INTEGER NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'PREVU',
     "contractAmountFC" DOUBLE PRECISION,
@@ -329,6 +331,7 @@ CREATE TABLE "Alert" (
     "severity" TEXT NOT NULL DEFAULT 'WARNING',
     "marketId" INTEGER,
     "contractId" INTEGER,
+    "thirdPartyProfileId" INTEGER,
     "refEntity" TEXT,
     "message" TEXT NOT NULL,
     "dueDate" TIMESTAMP(3),
@@ -338,6 +341,154 @@ CREATE TABLE "Alert" (
     "resolvedAt" TIMESTAMP(3),
 
     CONSTRAINT "Alert_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Direction" (
+    "id" SERIAL NOT NULL,
+    "code" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Direction_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ThirdPartyProfile" (
+    "id" SERIAL NOT NULL,
+    "supplierId" INTEGER,
+    "denomination" TEXT NOT NULL,
+    "rccm" TEXT,
+    "idNational" TEXT,
+    "nif" TEXT,
+    "taxNumber" TEXT,
+    "address" TEXT,
+    "province" TEXT,
+    "city" TEXT,
+    "phone" TEXT,
+    "email" TEXT,
+    "contactPerson" TEXT,
+    "creationDate" TIMESTAMP(3),
+    "sector" TEXT,
+    "activityCode" TEXT,
+    "experienceYrs" INTEGER,
+    "refsClients" TEXT,
+    "stage" TEXT NOT NULL DEFAULT 'ENREGISTRE',
+    "decision" TEXT,
+    "decisionNote" TEXT,
+    "riskScore" DOUBLE PRECISION,
+    "riskLevel" TEXT,
+    "recommendation" TEXT,
+    "mitigation" TEXT,
+    "lastScreenedAt" TIMESTAMP(3),
+    "nextReviewAt" TIMESTAMP(3),
+    "createdById" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ThirdPartyProfile_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ThirdPartyRepresentative" (
+    "id" SERIAL NOT NULL,
+    "profileId" INTEGER NOT NULL,
+    "role" TEXT NOT NULL,
+    "fullName" TEXT NOT NULL,
+    "idDocument" TEXT,
+    "appointmentDate" TIMESTAMP(3),
+
+    CONSTRAINT "ThirdPartyRepresentative_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ThirdPartyShareholder" (
+    "id" SERIAL NOT NULL,
+    "profileId" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "sharePct" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "isBeneficialOwner" BOOLEAN NOT NULL DEFAULT false,
+    "nationality" TEXT,
+
+    CONSTRAINT "ThirdPartyShareholder_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ThirdPartyDocument" (
+    "id" SERIAL NOT NULL,
+    "profileId" INTEGER NOT NULL,
+    "docType" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "provided" BOOLEAN NOT NULL DEFAULT false,
+    "issueDate" TIMESTAMP(3),
+    "expiryDate" TIMESTAMP(3),
+    "controlStatus" TEXT NOT NULL DEFAULT 'MANQUANT',
+    "controlNote" TEXT,
+    "documentId" INTEGER,
+
+    CONSTRAINT "ThirdPartyDocument_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "DueDiligenceAnswer" (
+    "id" SERIAL NOT NULL,
+    "profileId" INTEGER NOT NULL,
+    "questionKey" TEXT NOT NULL,
+    "answer" TEXT NOT NULL DEFAULT 'NSP',
+    "justification" TEXT,
+    "documentId" INTEGER,
+
+    CONSTRAINT "DueDiligenceAnswer_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "EnhancedInvestigationItem" (
+    "id" SERIAL NOT NULL,
+    "profileId" INTEGER NOT NULL,
+    "itemKey" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'A_FAIRE',
+    "result" TEXT,
+    "note" TEXT,
+
+    CONSTRAINT "EnhancedInvestigationItem_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ThirdPartyRiskRubric" (
+    "id" SERIAL NOT NULL,
+    "profileId" INTEGER NOT NULL,
+    "rubricKey" TEXT NOT NULL,
+    "weightPct" DOUBLE PRECISION NOT NULL,
+    "riskScore" DOUBLE PRECISION NOT NULL,
+    "justification" TEXT,
+
+    CONSTRAINT "ThirdPartyRiskRubric_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "InternalControlFlag" (
+    "id" SERIAL NOT NULL,
+    "profileId" INTEGER NOT NULL,
+    "controlKey" TEXT NOT NULL,
+    "triggered" BOOLEAN NOT NULL DEFAULT false,
+    "computed" BOOLEAN NOT NULL DEFAULT true,
+    "severity" TEXT NOT NULL DEFAULT 'INFO',
+    "note" TEXT,
+
+    CONSTRAINT "InternalControlFlag_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ThirdPartyMonitoringEvent" (
+    "id" SERIAL NOT NULL,
+    "profileId" INTEGER NOT NULL,
+    "type" TEXT NOT NULL,
+    "detectedAt" TIMESTAMP(3) NOT NULL,
+    "resolved" BOOLEAN NOT NULL DEFAULT false,
+    "detail" TEXT,
+
+    CONSTRAINT "ThirdPartyMonitoringEvent_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -363,6 +514,9 @@ CREATE INDEX "Market_status_idx" ON "Market"("status");
 
 -- CreateIndex
 CREATE INDEX "Market_fiscalYear_idx" ON "Market"("fiscalYear");
+
+-- CreateIndex
+CREATE INDEX "Market_directionId_idx" ON "Market"("directionId");
 
 -- CreateIndex
 CREATE INDEX "MarketStep_marketId_idx" ON "MarketStep"("marketId");
@@ -404,7 +558,49 @@ CREATE INDEX "Document_marketId_idx" ON "Document"("marketId");
 CREATE INDEX "Alert_status_idx" ON "Alert"("status");
 
 -- CreateIndex
+CREATE INDEX "Alert_thirdPartyProfileId_idx" ON "Alert"("thirdPartyProfileId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Alert_type_refEntity_key" ON "Alert"("type", "refEntity");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Direction_code_key" ON "Direction"("code");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ThirdPartyProfile_supplierId_key" ON "ThirdPartyProfile"("supplierId");
+
+-- CreateIndex
+CREATE INDEX "ThirdPartyProfile_riskLevel_idx" ON "ThirdPartyProfile"("riskLevel");
+
+-- CreateIndex
+CREATE INDEX "ThirdPartyProfile_decision_idx" ON "ThirdPartyProfile"("decision");
+
+-- CreateIndex
+CREATE INDEX "ThirdPartyRepresentative_profileId_idx" ON "ThirdPartyRepresentative"("profileId");
+
+-- CreateIndex
+CREATE INDEX "ThirdPartyShareholder_profileId_idx" ON "ThirdPartyShareholder"("profileId");
+
+-- CreateIndex
+CREATE INDEX "ThirdPartyDocument_profileId_idx" ON "ThirdPartyDocument"("profileId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ThirdPartyDocument_profileId_docType_key" ON "ThirdPartyDocument"("profileId", "docType");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DueDiligenceAnswer_profileId_questionKey_key" ON "DueDiligenceAnswer"("profileId", "questionKey");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "EnhancedInvestigationItem_profileId_itemKey_key" ON "EnhancedInvestigationItem"("profileId", "itemKey");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ThirdPartyRiskRubric_profileId_rubricKey_key" ON "ThirdPartyRiskRubric"("profileId", "rubricKey");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "InternalControlFlag_profileId_controlKey_key" ON "InternalControlFlag"("profileId", "controlKey");
+
+-- CreateIndex
+CREATE INDEX "ThirdPartyMonitoringEvent_profileId_idx" ON "ThirdPartyMonitoringEvent"("profileId");
 
 -- AddForeignKey
 ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -420,6 +616,9 @@ ALTER TABLE "Market" ADD CONSTRAINT "Market_templateId_fkey" FOREIGN KEY ("templ
 
 -- AddForeignKey
 ALTER TABLE "Market" ADD CONSTRAINT "Market_awardedSupplierId_fkey" FOREIGN KEY ("awardedSupplierId") REFERENCES "Supplier"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Market" ADD CONSTRAINT "Market_directionId_fkey" FOREIGN KEY ("directionId") REFERENCES "Direction"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Market" ADD CONSTRAINT "Market_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -497,5 +696,38 @@ ALTER TABLE "Document" ADD CONSTRAINT "Document_uploadedById_fkey" FOREIGN KEY (
 ALTER TABLE "Alert" ADD CONSTRAINT "Alert_marketId_fkey" FOREIGN KEY ("marketId") REFERENCES "Market"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "Alert" ADD CONSTRAINT "Alert_thirdPartyProfileId_fkey" FOREIGN KEY ("thirdPartyProfileId") REFERENCES "ThirdPartyProfile"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Alert" ADD CONSTRAINT "Alert_acknowledgedById_fkey" FOREIGN KEY ("acknowledgedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ThirdPartyProfile" ADD CONSTRAINT "ThirdPartyProfile_supplierId_fkey" FOREIGN KEY ("supplierId") REFERENCES "Supplier"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ThirdPartyProfile" ADD CONSTRAINT "ThirdPartyProfile_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ThirdPartyRepresentative" ADD CONSTRAINT "ThirdPartyRepresentative_profileId_fkey" FOREIGN KEY ("profileId") REFERENCES "ThirdPartyProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ThirdPartyShareholder" ADD CONSTRAINT "ThirdPartyShareholder_profileId_fkey" FOREIGN KEY ("profileId") REFERENCES "ThirdPartyProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ThirdPartyDocument" ADD CONSTRAINT "ThirdPartyDocument_profileId_fkey" FOREIGN KEY ("profileId") REFERENCES "ThirdPartyProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DueDiligenceAnswer" ADD CONSTRAINT "DueDiligenceAnswer_profileId_fkey" FOREIGN KEY ("profileId") REFERENCES "ThirdPartyProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "EnhancedInvestigationItem" ADD CONSTRAINT "EnhancedInvestigationItem_profileId_fkey" FOREIGN KEY ("profileId") REFERENCES "ThirdPartyProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ThirdPartyRiskRubric" ADD CONSTRAINT "ThirdPartyRiskRubric_profileId_fkey" FOREIGN KEY ("profileId") REFERENCES "ThirdPartyProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "InternalControlFlag" ADD CONSTRAINT "InternalControlFlag_profileId_fkey" FOREIGN KEY ("profileId") REFERENCES "ThirdPartyProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ThirdPartyMonitoringEvent" ADD CONSTRAINT "ThirdPartyMonitoringEvent_profileId_fkey" FOREIGN KEY ("profileId") REFERENCES "ThirdPartyProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

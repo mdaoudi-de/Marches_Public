@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { PageHeader, LinkButton, EmptyState, Badge } from "@/components/ui";
-import { ScoreBadge } from "@/components/badges";
+import { ScoreBadge, RiskBadge } from "@/components/badges";
 import { SUPPLIER_TYPE_LABELS, label } from "@/lib/enums";
 
 export default async function FournisseursPage() {
@@ -15,6 +15,7 @@ export default async function FournisseursPage() {
     orderBy: { name: "asc" },
     include: {
       evaluations: { select: { globalScore: true } },
+      thirdPartyProfile: { select: { id: true, riskLevel: true } },
       _count: { select: { markets: true, contracts: true, evaluations: true } },
     },
   });
@@ -41,6 +42,7 @@ export default async function FournisseursPage() {
                 <th>Contrats</th>
                 <th>Évaluations</th>
                 <th>Note moyenne</th>
+                <th>Due diligence</th>
               </tr>
             </thead>
             <tbody>
@@ -60,6 +62,13 @@ export default async function FournisseursPage() {
                     <td>{s._count.contracts || <span className="text-slate-300">0</span>}</td>
                     <td>{s._count.evaluations || <span className="text-slate-300">0</span>}</td>
                     <td><ScoreBadge value={avg} /></td>
+                    <td>
+                      {s.thirdPartyProfile ? (
+                        <Link href={`/tiers/${s.thirdPartyProfile.id}`} className="hover:underline">
+                          {s.thirdPartyProfile.riskLevel ? <RiskBadge value={s.thirdPartyProfile.riskLevel} /> : <span className="text-slate-400">Voir</span>}
+                        </Link>
+                      ) : <span className="text-slate-300">—</span>}
+                    </td>
                   </tr>
                 );
               })}

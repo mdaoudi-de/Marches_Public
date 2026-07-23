@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Star } from "lucide-react";
+import { ArrowLeft, Star, ShieldCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
-import { PageHeader, Card, CardHeader, CardBody, Badge, Field, Select, Textarea, Button, EmptyState } from "@/components/ui";
-import { ScoreBadge, MarketStatusBadge } from "@/components/badges";
+import { PageHeader, Card, CardHeader, CardBody, Badge, Field, Select, Textarea, Button, LinkButton, EmptyState } from "@/components/ui";
+import { ScoreBadge, MarketStatusBadge, RiskBadge, DecisionBadge } from "@/components/badges";
 import { SUPPLIER_TYPE_LABELS, CONTRACT_TYPE_LABELS, label } from "@/lib/enums";
 import { formatFC, formatDate } from "@/lib/utils";
 import { addEvaluation } from "@/actions/fournisseurs";
@@ -21,6 +21,7 @@ export default async function FournisseurDetail({ params }: { params: Promise<{ 
       markets: { orderBy: { reference: "asc" } },
       contracts: { include: { market: { select: { reference: true } } }, orderBy: { signatureDate: "desc" } },
       evaluations: { include: { market: { select: { reference: true } }, evaluator: { select: { fullName: true } } }, orderBy: { evaluatedAt: "desc" } },
+      thirdPartyProfile: { select: { id: true, riskScore: true, riskLevel: true, decision: true } },
     },
   });
   if (!s) notFound();
@@ -42,6 +43,25 @@ export default async function FournisseurDetail({ params }: { params: Promise<{ 
         title={<span className="flex flex-wrap items-center gap-3">{s.name} <Badge tone="slate">{label(SUPPLIER_TYPE_LABELS, s.type)}</Badge></span>}
         subtitle={<span className="flex items-center gap-2"><Star className="h-4 w-4 text-amber-400" /> Note moyenne : <ScoreBadge value={avg} /> ({s.evaluations.length} évaluation(s))</span>}
       />
+
+      {s.thirdPartyProfile && (
+        <Card className="mb-4">
+          <CardBody className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="rounded-md bg-brand-50 p-2 text-brand-600"><ShieldCheck className="h-5 w-5" /></span>
+              <div>
+                <p className="text-sm font-medium text-slate-700">Due diligence (Module 8)</p>
+                <p className="mt-0.5 flex items-center gap-2 text-sm text-slate-500">
+                  Score {s.thirdPartyProfile.riskScore != null ? Math.round(s.thirdPartyProfile.riskScore) : "—"}/100
+                  {s.thirdPartyProfile.riskLevel && <RiskBadge value={s.thirdPartyProfile.riskLevel} />}
+                  {s.thirdPartyProfile.decision && <DecisionBadge value={s.thirdPartyProfile.decision} />}
+                </p>
+              </div>
+            </div>
+            <LinkButton href={`/tiers/${s.thirdPartyProfile.id}`} variant="outline">Ouvrir la fiche tiers</LinkButton>
+          </CardBody>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>

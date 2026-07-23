@@ -9,6 +9,7 @@ import {
   FileSignature,
   ShoppingCart,
   Building2,
+  ShieldCheck,
   FolderOpen,
   Bell,
   Settings,
@@ -31,6 +32,7 @@ const NAV: NavItem[] = [
   { href: "/contrats", label: "Contrats & exécution", module: "CONTRATS", icon: FileSignature },
   { href: "/achats", label: "Achats sous seuil", module: "ACHATS", icon: ShoppingCart },
   { href: "/fournisseurs", label: "Fournisseurs", module: "FOURNISSEURS", icon: Building2 },
+  { href: "/tiers", label: "Tiers & Due Diligence", module: "TIERS", icon: ShieldCheck },
   { href: "/ged", label: "Documents (GED)", module: "GED", icon: FolderOpen },
   { href: "/alertes", label: "Alertes", module: "ALERTES", icon: Bell },
   { href: "/admin", label: "Administration", module: "ADMIN", icon: Settings },
@@ -43,12 +45,12 @@ export function Sidebar({ role, alertCount }: { role: string; alertCount: number
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-slate-800 bg-slate-900 text-slate-300">
       <div className="flex items-center gap-2 px-4 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 text-sm font-bold text-white">
-          MP
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 text-sm font-bold text-white shadow-sm">
+          PT
         </div>
         <div className="leading-tight">
-          <p className="text-sm font-semibold text-white">Marchés publics</p>
-          <p className="text-[11px] text-slate-400">Suivi & pilotage</p>
+          <p className="text-sm font-semibold text-white">Probitech</p>
+          <p className="text-[11px] text-brand-300">FONAREV</p>
         </div>
       </div>
 
@@ -82,7 +84,7 @@ export function Sidebar({ role, alertCount }: { role: string; alertCount: number
       </nav>
 
       <div className="border-t border-slate-800 px-4 py-3 text-[11px] text-slate-500">
-        POC · AFRICA LINK BUSINESS
+        Probitech · pour FONAREV
       </div>
     </aside>
   );

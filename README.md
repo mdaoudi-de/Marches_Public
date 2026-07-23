@@ -1,12 +1,15 @@
-# POC — Plateforme de gestion et de suivi des marchés publics
+# Probitech — Marchés publics & Due Diligence (FONAREV)
 
 Démonstrateur fonctionnel (proof of concept) d'une plateforme de dématérialisation et de
-pilotage du cycle de vie des marchés publics, pour une entité contractante en République
-du Congo. Réalisé par AFRICA LINK BUSINESS.
+pilotage du cycle de vie des marchés publics, pour **FONAREV** (autorité contractante,
+RDC). Produit : **Probitech**. Réalisé par AFRICA LINK BUSINESS. Montants en **USD**.
 
-Le cœur du produit reproduit la logique du **Plan de Passation des Marchés (PPM)** :
-chaque étape d'un marché porte une **date prévisionnelle** et une **date réalisée**, et
-la plateforme calcule automatiquement les **écarts**, les **retards** et les **alertes**.
+Deux piliers :
+- **Plan de Passation des Marchés (PPM)** : chaque étape d'un marché porte une **date
+  prévisionnelle** et une **date réalisée** → **écarts**, **retards** et **alertes** calculés.
+- **Module 8 — Screening, Due Diligence & Intelligence sur les Tiers** : qualification,
+  collecte documentaire, questionnaire, **scoring de risque pondéré**, décision et
+  **surveillance continue** des opérateurs économiques.
 
 ## Démarrage rapide
 
@@ -21,6 +24,31 @@ npm run dev                 # http://localhost:3000
 ```
 
 Pour repartir d'une base propre : `npm run db:reset` puis `npm run seed`.
+
+> **Cette branche (`deploy/vercel-postgres`) cible le déploiement Vercel** : base
+> **PostgreSQL** (Neon), stockage GED sur **Vercel Blob**, et **authentification
+> désactivée** (chaque visiteur agit comme l'administrateur — démo sans login).
+
+## Déploiement (Vercel + Neon)
+
+**Déploiement en un clic** (importe cette branche et demande les 2 variables d'environnement) :
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fmdaoudi-de%2FMarches_Public%2Ftree%2Fdeploy%2Fvercel-postgres&env=DATABASE_URL,BLOB_READ_WRITE_TOKEN&envDescription=URL%20PostgreSQL%20(Neon)%20et%20jeton%20Vercel%20Blob&project-name=probitech-fonarev&repository-name=probitech-fonarev)
+
+Puis, une fois le projet créé et les variables saisies, initialiser la base (en local, `.env` pointant sur Neon + le jeton Blob) : `npx prisma migrate deploy && npm run seed`.
+
+### Étapes détaillées
+
+1. **Base Neon** : créer un projet sur [neon.tech](https://console.neon.tech), copier l'URL de connexion *pooled*.
+2. **Store Blob** : dans le projet Vercel, *Storage → Blob* → créer un store (fournit `BLOB_READ_WRITE_TOKEN`).
+3. **Variables d'environnement Vercel** : `DATABASE_URL` (Neon), `BLOB_READ_WRITE_TOKEN` (auto si store rattaché).
+4. **Déployer** : importer le repo sur Vercel (branche `deploy/vercel-postgres`). Le `postinstall` génère le client Prisma ; `next build` construit l'app.
+5. **Initialiser la base** (une fois, en local avec le `DATABASE_URL` Neon dans `.env` + le `BLOB_READ_WRITE_TOKEN`) :
+   ```bash
+   npx prisma migrate deploy   # applique la migration sur Neon
+   npm run seed                # jeu de démonstration (documents → Vercel Blob)
+   ```
+   Sans `BLOB_READ_WRITE_TOKEN` en local, le seed insère les documents avec un chemin placeholder (le reste de la démo fonctionne).
 
 ## Comptes de démonstration
 
@@ -47,9 +75,10 @@ Mot de passe commun : **`Passw0rd!`**
 4. **Contrats & exécution** — garanties, paiements, réceptions, pénalités, avenants, ordres de service, bons de commande (contrats-cadres).
 5. **Achats sous seuil** — circuit demande → approbation → commande → paiement.
 6. **Fournisseurs** — base unique, historique, évaluation de performance (aide à la décision).
-7. **GED** — dossier électronique par marché, versions, recherche multicritère, flux de fichiers sécurisé.
-8. **Alertes** — retards de publication/étape, échéances de contrat, garanties expirant, retards de livraison, paiements en attente.
-9. **Administration** — utilisateurs & droits (matrice RBAC), modèles de procédure, journal d'audit + export.
+7. **Tiers & Due Diligence (Module 8)** — profil d'identité, pièces + contrôles, questionnaire, **scoring de risque pondéré (8 rubriques + 7 points de contrôle interne)**, workflow de décision (validation / conditionnelle / DD renforcée / rejet), surveillance continue.
+8. **GED** — dossier électronique par marché, versions, recherche multicritère, flux de fichiers sécurisé.
+9. **Alertes** — retards PPM, échéances/garanties/paiements de contrat, et surveillance des tiers (pièces expirant, risque élevé, incidents).
+10. **Administration** — utilisateurs & droits (matrice RBAC), **directions (référentiel FONAREV)**, modèles de procédure, journal d'audit + export.
 
 ## Pile technique
 

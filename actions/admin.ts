@@ -37,3 +37,24 @@ export async function toggleUserActive(id: number, active: boolean): Promise<voi
   await logAudit({ userId: user.id, action: "UPDATE", module: "ADMIN", entityType: "User", entityId: id, detail: `Utilisateur ${active ? "activé" : "désactivé"}` });
   revalidatePath("/admin/users");
 }
+
+export async function createDirection(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  assertCan(user, "ADMIN", "admin");
+  const name = String(formData.get("name") ?? "").trim();
+  const code = String(formData.get("code") ?? "").trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  if (!name || !code) throw new Error("Code et nom requis.");
+  const exists = await prisma.direction.findUnique({ where: { code } });
+  if (exists) throw new Error("Ce code de direction existe déjà.");
+  const d = await prisma.direction.create({ data: { code, name } });
+  await logAudit({ userId: user.id, action: "CREATE", module: "ADMIN", entityType: "Direction", entityId: d.id, detail: `Création de la direction ${name}` });
+  revalidatePath("/admin/directions");
+}
+
+export async function toggleDirection(id: number, active: boolean): Promise<void> {
+  const user = await requireUser();
+  assertCan(user, "ADMIN", "admin");
+  await prisma.direction.update({ where: { id }, data: { active } });
+  await logAudit({ userId: user.id, action: "UPDATE", module: "ADMIN", entityType: "Direction", entityId: id, detail: `Direction ${active ? "activée" : "désactivée"}` });
+  revalidatePath("/admin/directions");
+}
