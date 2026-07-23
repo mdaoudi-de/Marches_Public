@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Briefcase, TrendingUp, AlertTriangle, Bell, Wallet, FileSignature } from "lucide-react";
+import { Briefcase, TrendingUp, AlertTriangle, Bell, Wallet, FileSignature, ShieldCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, StatCard, Card, CardHeader, CardBody, EmptyState } from "@/components/ui";
 import { AlertSeverityBadge } from "@/components/badges";
@@ -24,6 +24,7 @@ export default async function DashboardPage() {
   const contractualise = markets.reduce((s, m) => s + (m.contractAmountFC ?? 0), 0);
 
   const activeAlerts = await prisma.alert.count({ where: { status: "ACTIVE" } });
+  const tiersARisque = await prisma.thirdPartyProfile.count({ where: { riskLevel: { in: ["ELEVE", "CRITIQUE"] } } });
   const topAlerts = await prisma.alert.findMany({
     where: { status: "ACTIVE" },
     include: { market: { select: { id: true, reference: true } } },
@@ -55,10 +56,11 @@ export default async function DashboardPage() {
     <>
       <PageHeader title="Tableau de bord" subtitle="Pilotage des marchés publics — synthèse au 15/07/2026" />
 
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-6">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         <StatCard label="Marchés" value={markets.length} hint={`${enCours} en cours`} tone="blue" icon={<Briefcase className="h-4 w-4" />} />
         <StatCard label="Exécution globale" value={`${tauxGlobal}%`} hint={`${realizedSteps}/${totalSteps} étapes`} tone="green" icon={<TrendingUp className="h-4 w-4" />} />
         <StatCard label="Marchés en retard" value={enRetard} tone={enRetard ? "red" : "green"} icon={<AlertTriangle className="h-4 w-4" />} />
+        <StatCard label="Tiers à risque" value={tiersARisque} hint="élevé / critique" tone={tiersARisque ? "red" : "green"} icon={<ShieldCheck className="h-4 w-4" />} />
         <StatCard label="Alertes actives" value={activeAlerts} hint="voir les alertes" tone="amber" icon={<Bell className="h-4 w-4" />} />
         <StatCard label="Budget total" value={formatCompactFC(budgetTotal)} tone="violet" icon={<Wallet className="h-4 w-4" />} />
         <StatCard label="Contractualisé" value={formatCompactFC(contractualise)} tone="slate" icon={<FileSignature className="h-4 w-4" />} />
