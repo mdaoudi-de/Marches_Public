@@ -29,11 +29,11 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-800 to-slate-900 p-4">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center text-white">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-white/10 text-2xl font-bold ring-1 ring-white/20">
-            MP
+          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 text-2xl font-bold shadow-lg ring-1 ring-white/20">
+            PT
           </div>
-          <h1 className="text-xl font-bold">Plateforme de suivi des marchés publics</h1>
-          <p className="mt-1 text-sm text-brand-100">Gestion & pilotage du cycle de passation</p>
+          <h1 className="text-2xl font-bold tracking-tight">Probitech</h1>
+          <p className="mt-1 text-sm text-brand-100">Suivi des marchés publics & due diligence — FONAREV</p>
         </div>
 
         <div className="rounded-xl bg-white p-6 shadow-xl">
@@ -65,7 +65,7 @@ export default function LoginPage() {
           </div>
         </div>
         <p className="mt-4 text-center text-xs text-brand-200">
-          POC — AFRICA LINK BUSINESS · démonstrateur
+          Probitech · pour FONAREV · démonstrateur — AFRICA LINK BUSINESS
         </p>
       </div>
     </main>

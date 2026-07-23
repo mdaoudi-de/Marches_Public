@@ -8,12 +8,18 @@ import { today } from "@/lib/config";
 export function Topbar({ fullName, role }: { fullName: string; role: string }) {
   return (
     <header className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-2.5">
-      <div
-        className="flex items-center gap-1.5 rounded-md bg-amber-50 px-2.5 py-1 text-xs text-amber-700 ring-1 ring-amber-200"
-        title="La date « aujourd'hui » est figée pour rendre la démonstration déterministe."
-      >
-        <CalendarDays className="h-3.5 w-3.5" />
-        Date de référence : <strong>{formatDate(today())}</strong>
+      <div className="flex items-center gap-3">
+        <span className="hidden items-center gap-1.5 text-sm font-semibold text-slate-700 sm:flex">
+          <span className="rounded bg-brand-600 px-1.5 py-0.5 text-[11px] font-bold text-white">FONAREV</span>
+          Autorité contractante
+        </span>
+        <div
+          className="flex items-center gap-1.5 rounded-md bg-amber-50 px-2.5 py-1 text-xs text-amber-700 ring-1 ring-amber-200"
+          title="La date « aujourd'hui » est figée pour rendre la démonstration déterministe."
+        >
+          <CalendarDays className="h-3.5 w-3.5" />
+          Date de référence : <strong>{formatDate(today())}</strong>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Plateforme de suivi des marchés publics",
+  title: "Probitech — Marchés publics & Due Diligence (FONAREV)",
   description:
-    "POC — Gestion et suivi des marchés publics (Plan de passation, passation, contrats, GED, fournisseurs).",
+    "Probitech — plateforme de gestion des marchés publics et de due diligence des tiers pour FONAREV (RDC).",
 };
 
 export default function RootLayout({
