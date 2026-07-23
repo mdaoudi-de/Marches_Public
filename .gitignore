@@ -23,14 +23,10 @@ yarn-error.log*
 .env
 .env*.local
 
-# prisma / sqlite
+# prisma / sqlite (dev local uniquement)
 /prisma/*.db
 /prisma/*.db-journal
 /prisma/dev.db
-
-# GED uploaded files
-/storage/documents/*
-!/storage/documents/.gitkeep
 
 # typescript
 *.tsbuildinfo

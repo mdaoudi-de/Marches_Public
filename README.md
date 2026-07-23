@@ -25,6 +25,23 @@ npm run dev                 # http://localhost:3000
 
 Pour repartir d'une base propre : `npm run db:reset` puis `npm run seed`.
 
+> **Cette branche (`deploy/vercel-postgres`) cible le déploiement Vercel** : base
+> **PostgreSQL** (Neon), stockage GED sur **Vercel Blob**, et **authentification
+> désactivée** (chaque visiteur agit comme l'administrateur — démo sans login).
+
+## Déploiement (Vercel + Neon)
+
+1. **Base Neon** : créer un projet sur [neon.tech](https://console.neon.tech), copier l'URL de connexion *pooled*.
+2. **Store Blob** : dans le projet Vercel, *Storage → Blob* → créer un store (fournit `BLOB_READ_WRITE_TOKEN`).
+3. **Variables d'environnement Vercel** : `DATABASE_URL` (Neon), `BLOB_READ_WRITE_TOKEN` (auto si store rattaché).
+4. **Déployer** : importer le repo sur Vercel (branche `deploy/vercel-postgres`). Le `postinstall` génère le client Prisma ; `next build` construit l'app.
+5. **Initialiser la base** (une fois, en local avec le `DATABASE_URL` Neon dans `.env` + le `BLOB_READ_WRITE_TOKEN`) :
+   ```bash
+   npx prisma migrate deploy   # applique la migration sur Neon
+   npm run seed                # jeu de démonstration (documents → Vercel Blob)
+   ```
+   Sans `BLOB_READ_WRITE_TOKEN` en local, le seed insère les documents avec un chemin placeholder (le reste de la démo fonctionne).
+
 ## Comptes de démonstration
 
 Mot de passe commun : **`Passw0rd!`**
